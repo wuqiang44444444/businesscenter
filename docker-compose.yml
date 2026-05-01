@@ -1,0 +1,68 @@
+services:
+  # 后端服务
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: codebuddy-server
+    restart: always
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./server/data.db:/app/data.db
+      - ./server/uploads:/app/uploads
+    environment:
+      - NODE_ENV=production
+    networks:
+      - codebuddy-network
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/api/dashboard"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # 前端服务 (Vite + React + nginx)
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: codebuddy-frontend
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      server:
+        condition: service_healthy
+    networks:
+      - codebuddy-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Nginx 反向代理 (可选，统一入口)
+  nginx:
+    image: nginx:alpine
+    container_name: codebuddy-nginx
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - server
+    networks:
+      - codebuddy-network
+
+networks:
+  codebuddy-network:
+    driver: bridge
+
+volumes:
+  data:
+  uploads:

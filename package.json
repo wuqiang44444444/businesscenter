@@ -1,0 +1,15 @@
+{
+  "scripts": {
+    "dev": "concurrently \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:client": "cd client && npm run dev",
+    "dev:server": "cd server && npm start"
+  },
+  "dependencies": {
+    "node-fetch": "^2.7.0",
+    "nodemailer": "^8.0.5",
+    "zod": "^4.4.1"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
