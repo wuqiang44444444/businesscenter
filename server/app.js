@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
+const path = require('path');
+const fs = require('fs');
 
 function createApp() {
   const app = express();
@@ -10,6 +12,7 @@ function createApp() {
   app.use(cookieParser());
   app.use(express.json());
 
+  // ========== API 路由 ==========
   app.use('/api', require('./routes/auth'));
   app.use('/api/users', require('./routes/users'));
   app.use('/api/customers', require('./routes/customers'));
@@ -25,6 +28,21 @@ function createApp() {
   app.use('/api/notifications', require('./routes/notifications'));
   app.use('/api/audit-log', require('./routes/audit-log'));
 
+  // ========== 生产环境：直接服务构建好的前端 ==========
+  // 部署时只需 cd client && npm run build，然后跑这个 server
+  // dev 模式下 client/dist 不存在，跳过这块；浏览器还是访问 Vite 5173
+  const clientDist = path.join(__dirname, '..', 'client', 'dist');
+  if (fs.existsSync(path.join(clientDist, 'index.html'))) {
+    app.use(express.static(clientDist));
+    // SPA 回退：非 /api 的所有路径都返回 index.html，让 react-router 接管
+    app.use((req, res, next) => {
+      if (req.path.startsWith('/api/')) return next();
+      if (req.method !== 'GET') return next();
+      res.sendFile(path.join(clientDist, 'index.html'));
+    });
+  }
+
+  // ========== 全局错误处理 ==========
   app.use((err, req, res, next) => {
     console.error(`[${req.method} ${req.originalUrl}]`, err);
     if (res.headersSent) return next(err);
