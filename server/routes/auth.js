@@ -39,11 +39,12 @@ router.post('/login', loginLimiter, validateBody(schemas.login), (req, res) => {
     { expiresIn: '7d' }
   );
   // 设置 httpOnly cookie（防 XSS 偷 token）。SameSite=Lax 兼容大多数浏览器。
-  // 生产环境应该开启 secure: true（仅 HTTPS）。
+  // 是否要求 HTTPS：仅当 COOKIE_SECURE=true 时启用。
+  // 默认 false，方便没配 HTTPS 的初始部署。配好 HTTPS 后再设 COOKIE_SECURE=true。
   res.cookie('auth_token', token, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    secure: process.env.COOKIE_SECURE === 'true',
     maxAge: 7 * 24 * 60 * 60 * 1000,
     path: '/',
   });
