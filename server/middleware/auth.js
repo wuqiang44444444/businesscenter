@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { getDb } = require('../database');
 
 const SECRET = process.env.JWT_SECRET;
 
@@ -10,6 +11,14 @@ function authMiddleware(req, res, next) {
   if (!token) return res.status(401).json({ error: '未登录' });
   try {
     req.user = jwt.verify(token, SECRET);
+    // 实时校验用户状态：禁用用户的旧 token 不能继续使用
+    const row = getDb().exec(`SELECT status FROM users WHERE id = ?`, [req.user.id]);
+    if (!row[0] || row[0].values.length === 0) {
+      return res.status(401).json({ error: '用户不存在' });
+    }
+    if (row[0].values[0][0] !== 'active') {
+      return res.status(401).json({ error: '账号已禁用' });
+    }
     next();
   } catch {
     res.status(401).json({ error: 'token无效' });

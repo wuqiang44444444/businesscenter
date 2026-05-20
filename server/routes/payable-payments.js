@@ -23,11 +23,27 @@ function recomputePaidStatus(db, payable_id) {
 router.post('/', authMiddleware, validateBody(schemas.payablePayment), (req, res) => {
   const { payable_id, amount, payment_date, payment_method, remark } = req.body;
   const db = getDb();
-  const id = uuidv4();
+  const newAmountCents = toCents(amount) ?? 0;
 
+  // 防超付：当前已付 + 本次 ≤ 总额
+  const ap = db.exec(`SELECT amount FROM accounts_payable WHERE id = ?`, [payable_id]);
+  if (!ap[0] || ap[0].values.length === 0) {
+    return res.status(404).json({ error: '应付账款不存在' });
+  }
+  const totalCents = ap[0].values[0][0] || 0;
+  const sumRes = db.exec(`SELECT COALESCE(SUM(amount), 0) FROM payable_payments WHERE payable_id = ?`, [payable_id]);
+  const alreadyPaidCents = sumRes[0]?.values[0][0] || 0;
+  if (alreadyPaidCents + newAmountCents > totalCents) {
+    const remainCents = totalCents - alreadyPaidCents;
+    return res.status(400).json({
+      error: `付款超过应付总额，剩余可付 ${(remainCents / 100).toFixed(2)} 元`,
+    });
+  }
+
+  const id = uuidv4();
   const tx = db.transaction(() => {
     db.run(`INSERT INTO payable_payments (id, payable_id, amount, payment_date, payment_method, remark, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [id, payable_id, toCents(amount) ?? 0, payment_date || null, payment_method || '', remark || '', req.user.id]);
+      [id, payable_id, newAmountCents, payment_date || null, payment_method || '', remark || '', req.user.id]);
     recomputePaidStatus(db, payable_id);
   });
   tx();

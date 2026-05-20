@@ -32,6 +32,20 @@ router.post('/', authMiddleware, adminMiddleware, validateBody(schemas.userCreat
 router.put('/:id', authMiddleware, adminMiddleware, validateBody(schemas.userUpdate), (req, res) => {
   const { real_name, role, permissions, status, password } = req.body;
   const db = getDb();
+
+  // 防止把唯一的 admin 降级 / 禁用，否则系统会失去管理员
+  const editingSelf = req.params.id === req.user.id || req.params.id === 'admin';
+  if (editingSelf && (role !== undefined && role !== 'admin' || status === 'disabled')) {
+    const others = db.exec(
+      `SELECT COUNT(*) FROM users WHERE role = 'admin' AND status = 'active' AND id != ?`,
+      [req.params.id]
+    );
+    const otherActiveAdmins = others[0]?.values[0][0] || 0;
+    if (otherActiveAdmins === 0) {
+      return res.status(400).json({ error: '不能把唯一的管理员降级或禁用' });
+    }
+  }
+
   const before = snapshot('users', req.params.id);
   if (before) delete before.password;
   if (password) {

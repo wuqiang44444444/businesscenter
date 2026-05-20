@@ -216,7 +216,8 @@ async function initDatabase() {
       before_json TEXT,
       after_json TEXT,
       ip TEXT,
-      created_at TEXT DEFAULT (datetime('now','localtime'))
+      -- 用 strftime %f 拿到毫秒精度（YYYY-MM-DD HH:MM:SS.fff），避免同秒多事件无法排序
+      created_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now','localtime'))
     );
 
     CREATE INDEX IF NOT EXISTS idx_audit_log_table_record ON audit_log(table_name, record_id);
@@ -231,6 +232,7 @@ async function initDatabase() {
 
   migrateForeignKeys();
   migrateMoneyToCents();
+  migrateAuditTimestampMs();
 
   // 默认管理员
   const adminRow = raw.prepare(`SELECT password, must_change_password FROM users WHERE username='admin'`).get();
@@ -361,6 +363,52 @@ function migrateMoneyToCents() {
   });
   tx();
   console.log('迁移完成：金额改为整数分存储');
+}
+
+// 把 audit_log.created_at 默认值从秒精度升级到毫秒精度
+// 原 default: datetime('now','localtime') → strftime('%Y-%m-%d %H:%M:%f','now','localtime')
+function migrateAuditTimestampMs() {
+  const ID = 'audit_log_ts_ms_v1';
+  const done = raw.prepare(`SELECT id FROM migrations WHERE id = ?`).get(ID);
+  if (done) return;
+
+  const row = raw.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='audit_log'`).get();
+  if (!row) {
+    raw.prepare(`INSERT INTO migrations (id) VALUES (?)`).run(ID);
+    return;
+  }
+  // 已经是新 schema（含 strftime）就跳过
+  if ((row.sql || '').includes('strftime')) {
+    raw.prepare(`INSERT INTO migrations (id) VALUES (?)`).run(ID);
+    return;
+  }
+
+  console.log('迁移审计日志时间戳到毫秒精度...');
+  raw.pragma('foreign_keys = OFF');
+  const tx = raw.transaction(() => {
+    raw.exec(`ALTER TABLE audit_log RENAME TO audit_log__old`);
+    raw.exec(`CREATE TABLE audit_log (
+      id TEXT PRIMARY KEY,
+      user_id TEXT,
+      username TEXT,
+      action TEXT NOT NULL,
+      table_name TEXT NOT NULL,
+      record_id TEXT,
+      before_json TEXT,
+      after_json TEXT,
+      ip TEXT,
+      created_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now','localtime'))
+    )`);
+    raw.exec(`INSERT INTO audit_log (id, user_id, username, action, table_name, record_id, before_json, after_json, ip, created_at)
+              SELECT id, user_id, username, action, table_name, record_id, before_json, after_json, ip, created_at FROM audit_log__old`);
+    raw.exec(`DROP TABLE audit_log__old`);
+    raw.exec(`CREATE INDEX IF NOT EXISTS idx_audit_log_table_record ON audit_log(table_name, record_id)`);
+    raw.exec(`CREATE INDEX IF NOT EXISTS idx_audit_log_user_created ON audit_log(user_id, created_at)`);
+    raw.prepare(`INSERT INTO migrations (id) VALUES (?)`).run(ID);
+  });
+  tx();
+  raw.pragma('foreign_keys = ON');
+  console.log('审计日志时间戳迁移完成');
 }
 
 // better-sqlite3 写入即落盘，saveDatabase 保留为 no-op 以兼容旧调用点
