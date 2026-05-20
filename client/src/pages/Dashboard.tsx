@@ -82,7 +82,8 @@ const Dashboard: React.FC = () => {
   };
 
   const StatCard = ({ title, value, icon, color, bg, prefix, onClick }: any) => (
-    <Col xs={12} sm={8} md={6} lg={4} key={title}>
+    // 每行最多 4 个卡片（lg=6），保证内容有充裕宽度
+    <Col xs={12} sm={12} md={8} lg={6} xl={6} key={title}>
       <Card
         hoverable
         onClick={onClick}
@@ -93,13 +94,13 @@ const Dashboard: React.FC = () => {
           transition: 'all 0.3s ease',
           cursor: 'pointer',
         }}
-        bodyStyle={{ padding: '16px 20px' }}
+        styles={{ body: { padding: '18px 20px' } }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{
-            width: 42,
-            height: 42,
-            borderRadius: 11,
+            width: 44,
+            height: 44,
+            borderRadius: 12,
             background: `linear-gradient(135deg, ${color}20, ${color}10)`,
             display: 'flex',
             alignItems: 'center',
@@ -109,16 +110,34 @@ const Dashboard: React.FC = () => {
             {icon}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ color: '#86868b', fontSize: 12, marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
-            <div style={{
-              fontSize: 'clamp(20px, 2.5vw, 26px)',
-              fontWeight: 600,
-              color: '#1d1d1f',
-              fontFamily: prefix ? 'SF Pro Display, -apple-system, sans-serif' : undefined,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}>
+            {/* 标题：允许两行换行，统一行高，避免被截 */}
+            <div
+              title={title}
+              style={{
+                color: '#86868b',
+                fontSize: 13,
+                lineHeight: '18px',
+                marginBottom: 4,
+                fontWeight: 500,
+                wordBreak: 'break-all',
+              }}
+            >
+              {title}
+            </div>
+            {/* 值：保持单行但允许字体随宽度自适应 */}
+            <div
+              title={typeof value === 'number' ? `${prefix || ''}${value.toLocaleString()}` : String(value)}
+              style={{
+                fontSize: 'clamp(18px, 2vw, 24px)',
+                fontWeight: 600,
+                color: '#1d1d1f',
+                fontFamily: prefix ? 'SF Pro Display, -apple-system, sans-serif' : undefined,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                lineHeight: 1.25,
+              }}
+            >
               {prefix}{typeof value === 'number' ? value.toLocaleString() : value}
             </div>
           </div>
