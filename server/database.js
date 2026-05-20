@@ -279,6 +279,20 @@ async function initDatabase() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_attachments_entity ON attachments(entity_table, entity_id);
+
+    CREATE TABLE IF NOT EXISTS custom_reports (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      source TEXT NOT NULL,
+      definition_json TEXT NOT NULL,
+      owner_id TEXT,
+      created_by TEXT,
+      created_at TEXT DEFAULT (datetime('now','localtime')),
+      updated_at TEXT DEFAULT (datetime('now','localtime'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_custom_reports_owner ON custom_reports(owner_id);
   `);
 
   // 老库补 must_change_password / email 列（幂等）

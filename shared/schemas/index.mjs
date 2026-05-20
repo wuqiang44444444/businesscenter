@@ -203,6 +203,27 @@ function buildSchemas(z) {
     remark: optionalText,
   });
 
+  // 自定义报表定义
+  const customReport = z.object({
+    name: z.string().min(1).max(100),
+    description: optionalText,
+    source: z.string().min(1),
+    definition: z.object({
+      source: z.string().min(1),
+      columns: z.array(z.string().min(1)).min(1),
+      filters: z.array(z.object({
+        field: z.string().min(1),
+        op: z.enum(['=', '!=', '>', '<', '>=', '<=', 'like', 'in', 'between', 'is_null', 'is_not_null']),
+        value: z.any().optional(),
+      })).optional().default([]),
+      sort: z.object({
+        field: z.string().min(1),
+        direction: z.enum(['asc', 'desc']).optional().default('asc'),
+      }).optional().nullable(),
+      limit: z.number().int().min(1).max(10000).optional().default(1000),
+    }),
+  });
+
   return {
     customer, project, contract, supplier,
     accountsPayable, payablePayment,
@@ -213,6 +234,7 @@ function buildSchemas(z) {
     receivableUpdate,
     bankAccount,
     reimbursement, reimbursementAction,
+    customReport,
   };
 }
 

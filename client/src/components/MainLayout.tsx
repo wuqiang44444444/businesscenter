@@ -15,6 +15,7 @@ import {
   AccountBookOutlined,
   BellOutlined,
   BarChartOutlined,
+  ExperimentOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -57,6 +58,7 @@ const MainLayout: React.FC = () => {
     { key: '/reports', icon: <BarChartOutlined />, label: '报表统计' },
     { key: '/bank-accounts', icon: <BankOutlined />, label: '银行账户' },
     { key: '/reimbursements', icon: <AccountBookOutlined />, label: renderReimbursementLabel() },
+    { key: '/custom-reports', icon: <ExperimentOutlined />, label: '自定义报表' },
     ...(isAdmin || user?.role === 'finance' ? [{ key: '/users', icon: <UserOutlined />, label: '用户管理' }] : []),
   ];
 

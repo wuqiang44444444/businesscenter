@@ -18,6 +18,7 @@ const Invoices = lazy(() => import('./pages/Invoices'));
 const Reports = lazy(() => import('./pages/Reports'));
 const BankAccounts = lazy(() => import('./pages/BankAccounts'));
 const Reimbursements = lazy(() => import('./pages/Reimbursements'));
+const CustomReports = lazy(() => import('./pages/CustomReports'));
 const Users = lazy(() => import('./pages/Users'));
 
 const RouteSpinner: React.FC = () => (
@@ -38,6 +39,7 @@ const TITLE_MAP: Record<string, string> = {
   '/reports': '报表统计',
   '/bank-accounts': '银行账户',
   '/reimbursements': '费用报销',
+  '/custom-reports': '自定义报表',
   '/users': '用户管理',
   '/login': '登录',
   '/change-password': '修改密码',
@@ -114,6 +116,7 @@ const App: React.FC = () => (
               <Route path="reports" element={<Reports />} />
               <Route path="bank-accounts" element={<BankAccounts />} />
               <Route path="reimbursements" element={<Reimbursements />} />
+              <Route path="custom-reports" element={<CustomReports />} />
               <Route path="users" element={<Users />} />
             </Route>
           </Routes>
