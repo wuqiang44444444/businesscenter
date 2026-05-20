@@ -9,6 +9,7 @@ const { initDatabase } = require('./database');
 const { initSchemas } = require('./schemas');
 const mailer = require('./lib/mailer');
 const reminder = require('./lib/reminder-scheduler');
+const backup = require('./lib/backup');
 
 const PORT = parseInt(process.env.PORT, 10) || 3001;
 
@@ -19,6 +20,7 @@ const PORT = parseInt(process.env.PORT, 10) || 3001;
     await initDatabase();
     mailer.init();          // SMTP 没配 → no-op，不影响启动
     reminder.start();       // 调度器，SMTP 没配也 no-op
+    backup.start(parseInt(process.env.BACKUP_KEEP_DAYS, 10) || 30);
     const { createApp } = require('./app');
     const app = createApp();
     app.listen(PORT, () => {
