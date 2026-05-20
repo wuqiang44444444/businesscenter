@@ -130,12 +130,12 @@ const MainLayout: React.FC = () => {
   };
 
   return (
-    <Layout style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%)' }}>
+    <Layout style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f5f7fa 0%, #eaeef5 100%)' }}>
       <Sider
         trigger={null}
         collapsible
         collapsed={collapsed}
-        width={240}
+        width={232}
         style={{
           overflow: 'auto',
           height: '100vh',
@@ -144,7 +144,8 @@ const MainLayout: React.FC = () => {
           top: 0,
           bottom: 0,
           background: 'linear-gradient(180deg, #1a1a2e 0%, #16213e 100%)',
-          boxShadow: '4px 0 24px rgba(0,0,0,0.08)',
+          boxShadow: '1px 0 0 rgba(0,0,0,0.04), 4px 0 24px rgba(0,0,0,0.06)',
+          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
       >
         <div style={{
@@ -161,11 +162,10 @@ const MainLayout: React.FC = () => {
           letterSpacing: collapsed ? 0 : 1,
         }}>
           {collapsed ? (
-            <span style={{ background: 'linear-gradient(135deg, #007AFF, #5AC8FA)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontSize: 22, fontWeight: 700 }}>BC</span>
+            <span style={{ background: 'linear-gradient(135deg, #007AFF, #5AC8FA)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontSize: 22, fontWeight: 700, letterSpacing: 0 }}>B</span>
           ) : (
-            <span>
-              <span style={{ background: 'linear-gradient(135deg, #007AFF, #5AC8FA)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontSize: 20, fontWeight: 700 }}>Business</span>
-              <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 16, marginLeft: 4, fontWeight: 400 }}>Center</span>
+            <span style={{ background: 'linear-gradient(135deg, #007AFF, #5AC8FA)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontSize: 22, fontWeight: 700, letterSpacing: 1 }}>
+              Business
             </span>
           )}
         </div>
@@ -178,20 +178,23 @@ const MainLayout: React.FC = () => {
           style={{
             borderRight: 0,
             background: 'transparent',
-            fontSize: 15,
+            fontSize: 14,
+            padding: '12px 8px',
           }}
         />
       </Sider>
-      <Layout style={{ marginLeft: collapsed ? 80 : 240, transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }}>
+      <Layout style={{ marginLeft: collapsed ? 80 : 232, transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)' }}>
         <Header style={{
-          padding: '0 32px',
-          background: 'rgba(255, 255, 255, 0.72)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
+          padding: '0 28px',
+          height: 60,
+          lineHeight: '60px',
+          background: 'rgba(255, 255, 255, 0.78)',
+          backdropFilter: 'blur(20px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(20px) saturate(180%)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+          borderBottom: '1px solid rgba(0,0,0,0.04)',
           position: 'sticky',
           top: 0,
           zIndex: 10,
@@ -275,14 +278,15 @@ const MainLayout: React.FC = () => {
           </div>
         </Header>
         <Content style={{
-          margin: 24,
-          padding: '28px 32px',
-          minHeight: 'calc(100vh - 112px)',
-          background: 'rgba(255, 255, 255, 0.8)',
+          margin: '20px 24px 24px',
+          padding: '24px 28px',
+          minHeight: 'calc(100vh - 104px)',
+          background: 'rgba(255, 255, 255, 0.85)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
-          borderRadius: 20,
-          boxShadow: '0 4px 24px rgba(0,0,0,0.04)',
+          borderRadius: 16,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 6px 24px rgba(0,0,0,0.04)',
+          border: '1px solid rgba(255,255,255,0.5)',
         }}>
           <Outlet />
         </Content>
