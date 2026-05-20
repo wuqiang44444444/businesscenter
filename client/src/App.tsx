@@ -1,22 +1,30 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ConfigProvider, Spin } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import MainLayout from './components/MainLayout';
+
+// 登录页保持同步加载（首屏要用），其余页面按路由懒加载
 import Login from './pages/Login';
-import ChangePassword from './pages/ChangePassword';
-import Dashboard from './pages/Dashboard';
-import Customers from './pages/Customers';
-import Projects from './pages/Projects';
-import Contracts from './pages/Contracts';
-import Suppliers from './pages/Suppliers';
-import AccountsPayable from './pages/AccountsPayable';
-import Invoices from './pages/Invoices';
-import Reports from './pages/Reports';
-import BankAccounts from './pages/BankAccounts';
-import Reimbursements from './pages/Reimbursements';
-import Users from './pages/Users';
+const ChangePassword = lazy(() => import('./pages/ChangePassword'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Customers = lazy(() => import('./pages/Customers'));
+const Projects = lazy(() => import('./pages/Projects'));
+const Contracts = lazy(() => import('./pages/Contracts'));
+const Suppliers = lazy(() => import('./pages/Suppliers'));
+const AccountsPayable = lazy(() => import('./pages/AccountsPayable'));
+const Invoices = lazy(() => import('./pages/Invoices'));
+const Reports = lazy(() => import('./pages/Reports'));
+const BankAccounts = lazy(() => import('./pages/BankAccounts'));
+const Reimbursements = lazy(() => import('./pages/Reimbursements'));
+const Users = lazy(() => import('./pages/Users'));
+
+const RouteSpinner: React.FC = () => (
+  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 240 }}>
+    <Spin size="large" />
+  </div>
+);
 
 // 路由 → 页面标题映射，配合 document.title 让浏览器 tab 显示具体页面
 const TITLE_MAP: Record<string, string> = {
@@ -91,23 +99,25 @@ const App: React.FC = () => (
     <BrowserRouter>
       <AuthProvider>
         <DocumentTitle />
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
-          <Route path="/" element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
-            <Route index element={<Dashboard />} />
-            <Route path="customers" element={<Customers />} />
-            <Route path="projects" element={<Projects />} />
-            <Route path="contracts" element={<Contracts />} />
-            <Route path="invoices" element={<Invoices />} />
-            <Route path="suppliers" element={<Suppliers />} />
-            <Route path="accounts-payable" element={<AccountsPayable />} />
-            <Route path="reports" element={<Reports />} />
-            <Route path="bank-accounts" element={<BankAccounts />} />
-            <Route path="reimbursements" element={<Reimbursements />} />
-            <Route path="users" element={<Users />} />
-          </Route>
-        </Routes>
+        <Suspense fallback={<RouteSpinner />}>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
+            <Route path="/" element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
+              <Route index element={<Dashboard />} />
+              <Route path="customers" element={<Customers />} />
+              <Route path="projects" element={<Projects />} />
+              <Route path="contracts" element={<Contracts />} />
+              <Route path="invoices" element={<Invoices />} />
+              <Route path="suppliers" element={<Suppliers />} />
+              <Route path="accounts-payable" element={<AccountsPayable />} />
+              <Route path="reports" element={<Reports />} />
+              <Route path="bank-accounts" element={<BankAccounts />} />
+              <Route path="reimbursements" element={<Reimbursements />} />
+              <Route path="users" element={<Users />} />
+            </Route>
+          </Routes>
+        </Suspense>
       </AuthProvider>
     </BrowserRouter>
   </ConfigProvider>
