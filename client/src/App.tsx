@@ -13,6 +13,7 @@ import Contracts from './pages/Contracts';
 import Suppliers from './pages/Suppliers';
 import AccountsPayable from './pages/AccountsPayable';
 import Invoices from './pages/Invoices';
+import Reports from './pages/Reports';
 import Users from './pages/Users';
 
 // 路由 → 页面标题映射，配合 document.title 让浏览器 tab 显示具体页面
@@ -24,6 +25,7 @@ const TITLE_MAP: Record<string, string> = {
   '/invoices': '发票管理',
   '/suppliers': '供应商管理',
   '/accounts-payable': '应付账款',
+  '/reports': '报表统计',
   '/users': '用户管理',
   '/login': '登录',
   '/change-password': '修改密码',
@@ -96,6 +98,7 @@ const App: React.FC = () => (
             <Route path="invoices" element={<Invoices />} />
             <Route path="suppliers" element={<Suppliers />} />
             <Route path="accounts-payable" element={<AccountsPayable />} />
+            <Route path="reports" element={<Reports />} />
             <Route path="users" element={<Users />} />
           </Route>
         </Routes>

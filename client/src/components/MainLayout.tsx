@@ -13,6 +13,7 @@ import {
   BankOutlined,
   AccountBookOutlined,
   BellOutlined,
+  BarChartOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -38,6 +39,7 @@ const MainLayout: React.FC = () => {
     { key: '/invoices', icon: <FileTextOutlined />, label: '发票管理' },
     { key: '/suppliers', icon: <BankOutlined />, label: '供应商管理' },
     { key: '/accounts-payable', icon: <AccountBookOutlined />, label: '应付账款' },
+    { key: '/reports', icon: <BarChartOutlined />, label: '报表统计' },
     ...(isAdmin || user?.role === 'finance' ? [{ key: '/users', icon: <UserOutlined />, label: '用户管理' }] : []),
   ];
 

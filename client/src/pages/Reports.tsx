@@ -1,0 +1,314 @@
+import React, { useEffect, useState } from 'react';
+import { Card, Row, Col, Statistic, Table, Tag, Progress, Empty, Spin, Tabs, message } from 'antd';
+import { ArrowUpOutlined, ArrowDownOutlined, AlertOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import request from '../utils/request';
+
+interface Summary {
+  receivable: { total: number; received: number; outstanding: number; overdue: number; collection_rate: number };
+  payable: { total: number; paid: number; outstanding: number; overdue: number; payment_rate: number };
+  net_cashflow: number;
+  net_expected: number;
+}
+interface TopCustomer { id: string; name: string; total_contract: number; received: number; outstanding: number; collection_rate: number }
+interface TopSupplier { id: string; name: string; total_payable: number; paid: number; outstanding: number; payment_rate: number }
+interface MonthlyTrend { month: string; received: number; expected: number; paid: number }
+interface OverdueBucket { count: number; amount: number; items: any[] }
+interface OverdueReport { receivable: { '0-30': OverdueBucket; '31-60': OverdueBucket; '60+': OverdueBucket }; payable: { '0-30': OverdueBucket; '31-60': OverdueBucket; '60+': OverdueBucket } }
+interface ContractStatus { by_status: { status: string; count: number; amount: number }[]; expiring_soon: any[] }
+
+const yuan = (n: number) => `¥${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const STATUS_LABEL: Record<string, { text: string; color: string }> = {
+  active: { text: '进行中', color: '#34C759' },
+  completed: { text: '已完成', color: '#5AC8FA' },
+  cancelled: { text: '已取消', color: '#FF3B30' },
+  paused: { text: '已暂停', color: '#FF9500' },
+};
+
+// 简易 SVG 折线图（不引第三方库）
+const MiniLineChart: React.FC<{ data: MonthlyTrend[] }> = ({ data }) => {
+  if (data.length === 0) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="无数据" />;
+  const w = 760, h = 240, padL = 50, padR = 20, padT = 20, padB = 36;
+  const innerW = w - padL - padR, innerH = h - padT - padB;
+  const maxV = Math.max(1, ...data.flatMap(d => [d.received, d.paid, d.expected]));
+  const x = (i: number) => padL + (data.length === 1 ? innerW / 2 : (innerW * i) / (data.length - 1));
+  const y = (v: number) => padT + innerH - (v / maxV) * innerH;
+  const path = (key: keyof MonthlyTrend) => data.map((d, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(d[key] as number)}`).join(' ');
+
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: 'auto' }}>
+      {/* 网格线 */}
+      {[0, 0.25, 0.5, 0.75, 1].map(p => (
+        <line key={p} x1={padL} x2={w - padR} y1={padT + innerH * p} y2={padT + innerH * p} stroke="#f0f0f0" />
+      ))}
+      {/* Y 轴 label */}
+      {[0, 0.5, 1].map(p => (
+        <text key={p} x={padL - 8} y={padT + innerH * (1 - p) + 4} fontSize="10" fill="#86868b" textAnchor="end">
+          {Math.round((maxV * p) / 1000) + 'k'}
+        </text>
+      ))}
+      {/* X 轴 label */}
+      {data.map((d, i) => i % Math.max(1, Math.floor(data.length / 8)) === 0 && (
+        <text key={d.month} x={x(i)} y={h - 14} fontSize="10" fill="#86868b" textAnchor="middle">{d.month.slice(2)}</text>
+      ))}
+      {/* 折线：已收（绿）/ 已付（红）/ 待收（蓝虚线） */}
+      <path d={path('expected')} stroke="#5AC8FA" strokeWidth="2" strokeDasharray="4 4" fill="none" />
+      <path d={path('received')} stroke="#34C759" strokeWidth="2.5" fill="none" />
+      <path d={path('paid')} stroke="#FF3B30" strokeWidth="2.5" fill="none" />
+      {/* 数据点 */}
+      {data.map((d, i) => (
+        <g key={i}>
+          <circle cx={x(i)} cy={y(d.received)} r="3" fill="#34C759" />
+          <circle cx={x(i)} cy={y(d.paid)} r="3" fill="#FF3B30" />
+        </g>
+      ))}
+      {/* 图例 */}
+      <g transform={`translate(${w - 220}, ${padT})`}>
+        <circle cx="6" cy="6" r="4" fill="#34C759" /><text x="16" y="10" fontSize="11" fill="#1d1d1f">已收</text>
+        <circle cx="66" cy="6" r="4" fill="#FF3B30" /><text x="76" y="10" fontSize="11" fill="#1d1d1f">已付</text>
+        <line x1="120" y1="6" x2="140" y2="6" stroke="#5AC8FA" strokeWidth="2" strokeDasharray="3 3" />
+        <text x="146" y="10" fontSize="11" fill="#1d1d1f">待收</text>
+      </g>
+    </svg>
+  );
+};
+
+const Reports: React.FC = () => {
+  const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [topCustomers, setTopCustomers] = useState<TopCustomer[]>([]);
+  const [topSuppliers, setTopSuppliers] = useState<TopSupplier[]>([]);
+  const [trend, setTrend] = useState<MonthlyTrend[]>([]);
+  const [overdue, setOverdue] = useState<OverdueReport | null>(null);
+  const [contractStatus, setContractStatus] = useState<ContractStatus | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        const [s, tc, ts, mt, od, cs] = await Promise.all([
+          request.get('/reports/summary'),
+          request.get('/reports/top-customers?limit=10'),
+          request.get('/reports/top-suppliers?limit=10'),
+          request.get('/reports/monthly-trend?months=12'),
+          request.get('/reports/overdue'),
+          request.get('/reports/contract-status'),
+        ]);
+        setSummary(s as any);
+        setTopCustomers(tc as any);
+        setTopSuppliers(ts as any);
+        setTrend(mt as any);
+        setOverdue(od as any);
+        setContractStatus(cs as any);
+      } catch (e: any) {
+        message.error(e.error || '加载报表失败');
+      } finally { setLoading(false); }
+    })();
+  }, []);
+
+  if (loading || !summary) return <div style={{ display: 'flex', justifyContent: 'center', padding: 80 }}><Spin size="large" /></div>;
+
+  const renderOverdueTable = (data: OverdueReport['receivable'] | OverdueReport['payable']) => (
+    <Row gutter={[16, 16]}>
+      {(['0-30', '31-60', '60+'] as const).map((bucket) => {
+        const color = bucket === '0-30' ? '#FF9500' : bucket === '31-60' ? '#FF6B35' : '#FF3B30';
+        return (
+          <Col xs={24} md={8} key={bucket}>
+            <Card styles={{ body: { padding: 16 } }} style={{ borderLeft: `4px solid ${color}` }}>
+              <div style={{ color: '#86868b', fontSize: 13, marginBottom: 4 }}>
+                <ClockCircleOutlined /> 逾期 {bucket} 天
+              </div>
+              <div style={{ fontSize: 22, fontWeight: 600, color, marginBottom: 4 }}>{yuan(data[bucket].amount)}</div>
+              <div style={{ fontSize: 12, color: '#86868b' }}>{data[bucket].count} 笔账款</div>
+            </Card>
+          </Col>
+        );
+      })}
+    </Row>
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div>
+        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 600, color: '#1d1d1f' }}>报表统计</h2>
+        <p style={{ margin: '4px 0 0', color: '#86868b', fontSize: 13 }}>财务状况一图概览</p>
+      </div>
+
+      {/* ===== 1. 应收应付总览 ===== */}
+      <Row gutter={[16, 16]}>
+        <Col xs={24} lg={12}>
+          <Card title={<span style={{ fontSize: 15, fontWeight: 600 }}>📥 应收账款</span>}>
+            <Row gutter={16}>
+              <Col span={12}><Statistic title="总应收" value={summary.receivable.total} precision={2} prefix="¥" /></Col>
+              <Col span={12}><Statistic title="已收金额" value={summary.receivable.received} precision={2} prefix="¥" valueStyle={{ color: '#34C759' }} /></Col>
+            </Row>
+            <Row gutter={16} style={{ marginTop: 16 }}>
+              <Col span={12}><Statistic title="未收金额" value={summary.receivable.outstanding} precision={2} prefix="¥" valueStyle={{ color: '#FF9500' }} /></Col>
+              <Col span={12}><Statistic title="其中逾期" value={summary.receivable.overdue} precision={2} prefix="¥" valueStyle={{ color: '#FF3B30' }} /></Col>
+            </Row>
+            <div style={{ marginTop: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ color: '#86868b', fontSize: 12 }}>回款率</span>
+                <strong>{summary.receivable.collection_rate}%</strong>
+              </div>
+              <Progress percent={summary.receivable.collection_rate} strokeColor={{ '0%': '#34C759', '100%': '#5AC8FA' }} showInfo={false} />
+            </div>
+          </Card>
+        </Col>
+        <Col xs={24} lg={12}>
+          <Card title={<span style={{ fontSize: 15, fontWeight: 600 }}>📤 应付账款</span>}>
+            <Row gutter={16}>
+              <Col span={12}><Statistic title="总应付" value={summary.payable.total} precision={2} prefix="¥" /></Col>
+              <Col span={12}><Statistic title="已付金额" value={summary.payable.paid} precision={2} prefix="¥" valueStyle={{ color: '#FF3B30' }} /></Col>
+            </Row>
+            <Row gutter={16} style={{ marginTop: 16 }}>
+              <Col span={12}><Statistic title="未付金额" value={summary.payable.outstanding} precision={2} prefix="¥" valueStyle={{ color: '#FF9500' }} /></Col>
+              <Col span={12}><Statistic title="其中逾期" value={summary.payable.overdue} precision={2} prefix="¥" valueStyle={{ color: '#FF3B30' }} /></Col>
+            </Row>
+            <div style={{ marginTop: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ color: '#86868b', fontSize: 12 }}>付款率</span>
+                <strong>{summary.payable.payment_rate}%</strong>
+              </div>
+              <Progress percent={summary.payable.payment_rate} strokeColor={{ '0%': '#FF9500', '100%': '#FF3B30' }} showInfo={false} />
+            </div>
+          </Card>
+        </Col>
+      </Row>
+
+      {/* 净现金流 */}
+      <Row gutter={[16, 16]}>
+        <Col xs={24} md={12}>
+          <Card>
+            <Statistic
+              title="净现金流（已收 - 已付）"
+              value={summary.net_cashflow}
+              precision={2}
+              prefix="¥"
+              valueStyle={{ color: summary.net_cashflow >= 0 ? '#34C759' : '#FF3B30', fontSize: 28 }}
+              suffix={summary.net_cashflow >= 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} md={12}>
+          <Card>
+            <Statistic
+              title="预期净现金流（待收 - 待付）"
+              value={summary.net_expected}
+              precision={2}
+              prefix="¥"
+              valueStyle={{ color: summary.net_expected >= 0 ? '#5AC8FA' : '#FF9500', fontSize: 28 }}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      {/* ===== 2/3. TOP 客户 / 供应商 ===== */}
+      <Row gutter={[16, 16]}>
+        <Col xs={24} xl={12}>
+          <Card title={<span style={{ fontSize: 15, fontWeight: 600 }}>🏆 客户应收 TOP 10</span>}>
+            <Table
+              size="small"
+              dataSource={topCustomers}
+              rowKey="id"
+              pagination={false}
+              columns={[
+                { title: '客户', dataIndex: 'name', key: 'name', ellipsis: true },
+                { title: '合同总额', dataIndex: 'total_contract', key: 't', align: 'right', render: yuan, width: 120 },
+                {
+                  title: '回款率', dataIndex: 'collection_rate', key: 'r', width: 130,
+                  render: (v: number) => <Progress percent={v} size="small" strokeColor="#34C759" />,
+                },
+              ]}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} xl={12}>
+          <Card title={<span style={{ fontSize: 15, fontWeight: 600 }}>🏭 供应商应付 TOP 10</span>}>
+            <Table
+              size="small"
+              dataSource={topSuppliers}
+              rowKey="id"
+              pagination={false}
+              columns={[
+                { title: '供应商', dataIndex: 'name', key: 'name', ellipsis: true },
+                { title: '应付总额', dataIndex: 'total_payable', key: 't', align: 'right', render: yuan, width: 120 },
+                {
+                  title: '付款率', dataIndex: 'payment_rate', key: 'r', width: 130,
+                  render: (v: number) => <Progress percent={v} size="small" strokeColor="#FF9500" />,
+                },
+              ]}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      {/* ===== 4. 月度收支趋势 ===== */}
+      <Card title={<span style={{ fontSize: 15, fontWeight: 600 }}>📈 近 12 个月收支趋势</span>}>
+        <MiniLineChart data={trend} />
+      </Card>
+
+      {/* ===== 5. 逾期账款分析 ===== */}
+      {overdue && (
+        <Card
+          title={<span style={{ fontSize: 15, fontWeight: 600 }}><AlertOutlined style={{ color: '#FF3B30' }} /> 逾期账款分析</span>}
+        >
+          <Tabs
+            items={[
+              { key: 'r', label: '逾期应收', children: renderOverdueTable(overdue.receivable) },
+              { key: 'p', label: '逾期应付', children: renderOverdueTable(overdue.payable) },
+            ]}
+          />
+        </Card>
+      )}
+
+      {/* ===== 6. 合同状态分布 + 30 天到期 ===== */}
+      {contractStatus && (
+        <Row gutter={[16, 16]}>
+          <Col xs={24} lg={10}>
+            <Card title={<span style={{ fontSize: 15, fontWeight: 600 }}>📋 合同状态分布</span>}>
+              {contractStatus.by_status.length === 0 ? <Empty description="无合同" /> : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {contractStatus.by_status.map(s => {
+                    const label = STATUS_LABEL[s.status] || { text: s.status, color: '#86868b' };
+                    return (
+                      <div key={s.status}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <span><Tag color={label.color} style={{ marginRight: 8 }}>{label.text}</Tag>{s.count} 个</span>
+                          <strong>{yuan(s.amount)}</strong>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+          </Col>
+          <Col xs={24} lg={14}>
+            <Card title={<span style={{ fontSize: 15, fontWeight: 600 }}>⏰ 30 天内到期合同（{contractStatus.expiring_soon.length}）</span>}>
+              <Table
+                size="small"
+                dataSource={contractStatus.expiring_soon}
+                rowKey="id"
+                pagination={{ pageSize: 5 }}
+                locale={{ emptyText: '近 30 天内无到期合同' }}
+                columns={[
+                  { title: '合同', dataIndex: 'name', key: 'name', ellipsis: true },
+                  { title: '客户', dataIndex: 'customer_name', key: 'c', ellipsis: true },
+                  { title: '金额', dataIndex: 'amount', key: 'a', align: 'right', render: yuan, width: 110 },
+                  { title: '到期日', dataIndex: 'end_date', key: 'e', width: 100 },
+                  {
+                    title: '剩余', dataIndex: 'days_left', key: 'd', width: 80,
+                    render: (v: number) => <Tag color={v <= 7 ? '#FF3B30' : v <= 15 ? '#FF9500' : '#5AC8FA'}>{v} 天</Tag>,
+                  },
+                ]}
+              />
+            </Card>
+          </Col>
+        </Row>
+      )}
+    </div>
+  );
+};
+
+export default Reports;
