@@ -83,7 +83,8 @@ const Dashboard: React.FC = () => {
 
   const StatCard = ({ title, value, icon, color, bg, prefix, onClick }: any) => (
     // 竖向布局：图标在顶部左侧，标题和数字各占独立一行用满整个卡片宽度
-    <Col xs={12} sm={12} md={8} lg={6} xl={6} key={title}>
+    // 桌面端一行 3 个卡片（lg=xl=8，24/8=3）
+    <Col xs={24} sm={12} md={12} lg={8} xl={8} key={title}>
       <Card
         hoverable
         onClick={onClick}
