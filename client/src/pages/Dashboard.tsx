@@ -82,7 +82,7 @@ const Dashboard: React.FC = () => {
   };
 
   const StatCard = ({ title, value, icon, color, bg, prefix, onClick }: any) => (
-    // 每行最多 4 个卡片（lg=6），保证内容有充裕宽度
+    // 竖向布局：图标在顶部左侧，标题和数字各占独立一行用满整个卡片宽度
     <Col xs={12} sm={12} md={8} lg={6} xl={6} key={title}>
       <Card
         hoverable
@@ -94,9 +94,10 @@ const Dashboard: React.FC = () => {
           transition: 'all 0.3s ease',
           cursor: 'pointer',
         }}
-        styles={{ body: { padding: '18px 20px' } }}
+        styles={{ body: { padding: '20px 22px' } }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* 顶部：图标 */}
           <div style={{
             width: 44,
             height: 44,
@@ -109,37 +110,32 @@ const Dashboard: React.FC = () => {
           }}>
             {icon}
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            {/* 标题：允许两行换行，统一行高，避免被截 */}
-            <div
-              title={title}
-              style={{
-                color: '#86868b',
-                fontSize: 13,
-                lineHeight: '18px',
-                marginBottom: 4,
-                fontWeight: 500,
-                wordBreak: 'break-all',
-              }}
-            >
-              {title}
-            </div>
-            {/* 值：保持单行但允许字体随宽度自适应 */}
-            <div
-              title={typeof value === 'number' ? `${prefix || ''}${value.toLocaleString()}` : String(value)}
-              style={{
-                fontSize: 'clamp(18px, 2vw, 24px)',
-                fontWeight: 600,
-                color: '#1d1d1f',
-                fontFamily: prefix ? 'SF Pro Display, -apple-system, sans-serif' : undefined,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                lineHeight: 1.25,
-              }}
-            >
-              {prefix}{typeof value === 'number' ? value.toLocaleString() : value}
-            </div>
+
+          {/* 标题：允许任意长度换行 */}
+          <div
+            title={title}
+            style={{
+              color: '#86868b',
+              fontSize: 13,
+              lineHeight: '18px',
+              fontWeight: 500,
+            }}
+          >
+            {title}
+          </div>
+
+          {/* 数字：占满整个卡片宽度，允许换行不再截断 */}
+          <div
+            style={{
+              fontSize: 'clamp(20px, 2.4vw, 26px)',
+              fontWeight: 600,
+              color: '#1d1d1f',
+              fontFamily: prefix ? 'SF Pro Display, -apple-system, sans-serif' : undefined,
+              lineHeight: 1.2,
+              wordBreak: 'break-word',
+            }}
+          >
+            {prefix}{typeof value === 'number' ? value.toLocaleString() : value}
           </div>
         </div>
       </Card>
