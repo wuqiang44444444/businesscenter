@@ -222,6 +222,20 @@ async function initDatabase() {
 
     CREATE INDEX IF NOT EXISTS idx_audit_log_table_record ON audit_log(table_name, record_id);
     CREATE INDEX IF NOT EXISTS idx_audit_log_user_created ON audit_log(user_id, created_at);
+
+    CREATE TABLE IF NOT EXISTS attachments (
+      id TEXT PRIMARY KEY,
+      entity_table TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      original_name TEXT NOT NULL,
+      stored_path TEXT NOT NULL,
+      mime_type TEXT,
+      size INTEGER DEFAULT 0,
+      uploaded_by TEXT,
+      created_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now','localtime'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_attachments_entity ON attachments(entity_table, entity_id);
   `);
 
   // 老库补 must_change_password 列（幂等）

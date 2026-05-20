@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, Input, Select, Space, Card, Tag, Popconfirm, message, InputNumber, DatePicker, Descriptions } from 'antd';
+import { Table, Button, Modal, Form, Input, Select, Space, Card, Tag, Popconfirm, message, InputNumber, DatePicker, Descriptions, Divider } from 'antd';
+import Attachments from '../components/Attachments';
 import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, DollarOutlined, FileTextOutlined, ImportOutlined } from '@ant-design/icons';
 import { useLocation } from 'react-router-dom';
 import request from '../utils/request';
@@ -419,6 +420,9 @@ const Contracts: React.FC = () => {
               <Descriptions.Item label="结束日期">{detail.end_date || '-'}</Descriptions.Item>
               <Descriptions.Item label="描述" span={2}>{detail.description || '-'}</Descriptions.Item>
             </Descriptions>
+
+            <Divider titlePlacement="left" style={{ fontSize: 14, fontWeight: 600, color: '#1d1d1f' }}>合同附件</Divider>
+            <Attachments entity="contracts" entityId={detail.id} />
           </div>
         )}
       </Modal>

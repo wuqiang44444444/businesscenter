@@ -4,6 +4,7 @@ import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, SearchOutlined
 import request from '../utils/request';
 import dayjs from 'dayjs';
 import ImportExportModal from '../components/ImportExportModal';
+import Attachments from '../components/Attachments';
 
 const invoiceStatusMap: Record<string, { color: string; label: string }> = {
   pending: { color: '#FF9500', label: '待审核' },
@@ -339,6 +340,11 @@ const Invoices: React.FC = () => {
               <div><span style={{ color: '#86868b' }}>开票日期：</span>{detail.issue_date || '-'}</div>
               <div><span style={{ color: '#86868b' }}>付款截止：</span>{detail.due_date || '-'}</div>
               <div style={{ gridColumn: '1 / -1' }}><span style={{ color: '#86868b' }}>备注：</span>{detail.remark || '-'}</div>
+            </div>
+
+            <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid #f0f0f0' }}>
+              <div style={{ fontWeight: 600, marginBottom: 12, color: '#1d1d1f' }}>发票附件（扫描件 / 影像）</div>
+              <Attachments entity="invoices" entityId={detail.id} />
             </div>
           </div>
         )}

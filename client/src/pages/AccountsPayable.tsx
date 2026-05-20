@@ -3,6 +3,7 @@ import { Table, Button, Modal, Form, Input, Select, Space, Card, Tag, Popconfirm
 import { PlusOutlined, EditOutlined, DeleteOutlined, DollarOutlined, EyeOutlined, ImportOutlined } from '@ant-design/icons';
 import request from '../utils/request';
 import dayjs from 'dayjs';
+import Attachments from '../components/Attachments';
 import ImportExportModal from '../components/ImportExportModal';
 
 const apStatusMap: Record<string, { color: string; label: string }> = {
@@ -328,6 +329,9 @@ const AccountsPayable: React.FC = () => {
                 <Table columns={paymentColumns} dataSource={detail.payments} rowKey="id" pagination={false} size="small" />
               </>
             )}
+
+            <Divider titlePlacement="left" style={{ fontSize: 14, fontWeight: 600, color: '#1d1d1f' }}>附件（合同复印件 / 付款凭证）</Divider>
+            <Attachments entity="accounts_payable" entityId={detail.id} />
           </div>
         )}
       </Modal>
