@@ -81,6 +81,103 @@ const MiniLineChart: React.FC<{ data: MonthlyTrend[] }> = ({ data }) => {
   );
 };
 
+// 饼图（合同状态分布等占比展示）
+const MiniPieChart: React.FC<{ data: { label: string; value: number; color: string }[]; size?: number }> = ({ data, size = 200 }) => {
+  const total = data.reduce((s, d) => s + d.value, 0);
+  if (total === 0) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="无数据" />;
+  const r = size / 2 - 4;
+  const cx = size / 2, cy = size / 2;
+  let acc = 0;
+  // 单一分类（占 100%）画整圆，避免 arc 退化成 0 长度
+  if (data.length === 1 || data.filter(d => d.value > 0).length === 1) {
+    const only = data.find(d => d.value > 0)!;
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+        <svg width={size} height={size}>
+          <circle cx={cx} cy={cy} r={r} fill={only.color} />
+        </svg>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {data.map(d => (
+            <div key={d.label} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+              <span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: 3, background: d.color }} />
+              <span style={{ color: '#1d1d1f' }}>{d.label}</span>
+              <span style={{ color: '#86868b' }}>{d.value > 0 ? '100.0%' : '0.0%'}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  const arcs = data.map((d) => {
+    const start = acc / total * Math.PI * 2 - Math.PI / 2;
+    acc += d.value;
+    const end = acc / total * Math.PI * 2 - Math.PI / 2;
+    const x1 = cx + r * Math.cos(start);
+    const y1 = cy + r * Math.sin(start);
+    const x2 = cx + r * Math.cos(end);
+    const y2 = cy + r * Math.sin(end);
+    const largeArc = d.value / total > 0.5 ? 1 : 0;
+    return { d, path: `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z` };
+  });
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+      <svg width={size} height={size}>
+        {arcs.map((a, i) => <path key={i} d={a.path} fill={a.d.color} />)}
+      </svg>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {data.map((d) => (
+          <div key={d.label} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+            <span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: 3, background: d.color }} />
+            <span style={{ color: '#1d1d1f' }}>{d.label}</span>
+            <span style={{ color: '#86868b' }}>{((d.value / total) * 100).toFixed(1)}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// 堆叠柱图：每月销项税 vs 进项税
+const StackedBarChart: React.FC<{ data: { month: string; sales: number; purchases: number }[] }> = ({ data }) => {
+  if (data.length === 0 || data.every(d => d.sales === 0 && d.purchases === 0)) {
+    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="无数据" />;
+  }
+  const w = 760, h = 240, padL = 50, padR = 20, padT = 20, padB = 40;
+  const innerW = w - padL - padR, innerH = h - padT - padB;
+  const maxV = Math.max(1, ...data.map(d => d.sales + d.purchases));
+  const barW = (innerW / data.length) * 0.65;
+  const slot = innerW / data.length;
+  const y = (v: number) => padT + innerH - (v / maxV) * innerH;
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: 'auto' }}>
+      {[0, 0.25, 0.5, 0.75, 1].map(p => (
+        <line key={p} x1={padL} x2={w - padR} y1={padT + innerH * p} y2={padT + innerH * p} stroke="#f0f0f0" />
+      ))}
+      {[0, 0.5, 1].map(p => (
+        <text key={p} x={padL - 8} y={padT + innerH * (1 - p) + 4} fontSize="10" fill="#86868b" textAnchor="end">
+          {Math.round((maxV * p) / 1000) + 'k'}
+        </text>
+      ))}
+      {data.map((d, i) => {
+        const cx = padL + slot * i + slot / 2;
+        const salesH = (d.sales / maxV) * innerH;
+        const purH = (d.purchases / maxV) * innerH;
+        return (
+          <g key={i}>
+            <rect x={cx - barW / 2} y={y(d.sales)} width={barW} height={salesH} fill="#5AC8FA" />
+            <rect x={cx - barW / 2} y={y(d.sales + d.purchases)} width={barW} height={purH} fill="#FF9500" />
+            <text x={cx} y={h - 14} fontSize="10" fill="#86868b" textAnchor="middle">{d.month.slice(-2)}月</text>
+          </g>
+        );
+      })}
+      <g transform={`translate(${w - 200}, ${padT})`}>
+        <rect x="0" y="0" width="12" height="12" fill="#5AC8FA" /><text x="18" y="10" fontSize="11" fill="#1d1d1f">销项税</text>
+        <rect x="80" y="0" width="12" height="12" fill="#FF9500" /><text x="98" y="10" fontSize="11" fill="#1d1d1f">进项税</text>
+      </g>
+    </svg>
+  );
+};
+
 const Reports: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -291,7 +388,14 @@ const Reports: React.FC = () => {
           <Col xs={24} lg={10}>
             <Card title={<span style={{ fontSize: 15, fontWeight: 600 }}>📋 合同状态分布</span>}>
               {contractStatus.by_status.length === 0 ? <Empty description="无合同" /> : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <>
+                  <MiniPieChart
+                    data={contractStatus.by_status.map(s => {
+                      const label = STATUS_LABEL[s.status] || { text: s.status, color: '#86868b' };
+                      return { label: `${label.text}（${s.count}）`, value: s.count, color: label.color };
+                    })}
+                  />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 16, paddingTop: 16, borderTop: '1px solid #f0f0f0' }}>
                   {contractStatus.by_status.map(s => {
                     const label = STATUS_LABEL[s.status] || { text: s.status, color: '#86868b' };
                     return (
@@ -303,7 +407,8 @@ const Reports: React.FC = () => {
                       </div>
                     );
                   })}
-                </div>
+                  </div>
+                </>
               )}
             </Card>
           </Col>
@@ -394,6 +499,15 @@ const Reports: React.FC = () => {
                 </Card>
               </Col>
             </Row>
+            <div style={{ marginBottom: 16 }}>
+              <StackedBarChart
+                data={taxSummary.monthly_net.map(m => ({
+                  month: m.month,
+                  sales: m.sales_tax,
+                  purchases: m.purchases_tax,
+                }))}
+              />
+            </div>
             <Table
               size="small"
               dataSource={taxSummary.monthly_net.map((m, i) => ({
