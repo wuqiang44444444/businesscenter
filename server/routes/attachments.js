@@ -33,10 +33,14 @@ const storage = multer.diskStorage({
     cb(null, dir);
   },
   filename: (req, file, cb) => {
-    // 把原始文件名 latin1 → utf8 修复（multer 默认会乱码）
-    const original = Buffer.from(file.originalname, 'latin1').toString('utf8');
-    file.originalname = original;
-    cb(null, `${uuidv4()}__${original}`);
+    // 修复 multer 默认 latin1 解析 → 让 file.originalname 拿到真正的 UTF-8 字符串
+    // 这只用于存 DB（显示用），磁盘文件名独立用 UUID，避免编码问题
+    try {
+      file.originalname = Buffer.from(file.originalname, 'latin1').toString('utf8');
+    } catch {}
+    // 磁盘上只用 UUID + 安全扩展名（去除路径分隔符），跨平台 / 跨编码绝对安全
+    const ext = path.extname(file.originalname || '').replace(/[^.a-zA-Z0-9]/g, '').slice(0, 10);
+    cb(null, `${uuidv4()}${ext}`);
   },
 });
 
