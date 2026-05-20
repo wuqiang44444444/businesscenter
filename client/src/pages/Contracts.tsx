@@ -1,6 +1,96 @@
 import React, { useEffect, useState } from 'react';
 import { Table, Button, Modal, Form, Input, Select, Space, Card, Tag, Popconfirm, message, InputNumber, DatePicker, Descriptions, Divider } from 'antd';
 import Attachments from '../components/Attachments';
+import { useAuth } from '../contexts/AuthContext';
+
+// 合同审批面板：根据当前合同状态 + 用户角色显示对应操作按钮
+const ContractApprovalPanel: React.FC<{
+  detail: any;
+  isAdmin: boolean;
+  currentUserId?: string;
+  onRefresh: () => void | Promise<void>;
+}> = ({ detail, isAdmin, currentUserId, onRefresh }) => {
+  const [rejectOpen, setRejectOpen] = React.useState(false);
+  const [rejectRemark, setRejectRemark] = React.useState('');
+  const [loading, setLoading] = React.useState(false);
+
+  const status = detail.approval_status || 'approved';
+  const statusMap: Record<string, { color: string; label: string }> = {
+    draft:     { color: '#86868b', label: '草稿' },
+    submitted: { color: '#FF9500', label: '待审批' },
+    approved:  { color: '#34C759', label: '已批准' },
+    rejected:  { color: '#FF3B30', label: '已驳回' },
+  };
+
+  const can = {
+    submit: ['draft', 'rejected'].includes(status) && (detail.created_by === currentUserId || isAdmin),
+    approve: status === 'submitted' && isAdmin,
+    reject: status === 'submitted' && isAdmin,
+  };
+
+  const doAction = async (action: 'submit' | 'approve' | 'reject', body?: any) => {
+    setLoading(true);
+    try {
+      await request.post(`/contracts/${detail.id}/${action}`, body);
+      message.success(action === 'submit' ? '已提交审批' : action === 'approve' ? '审批通过' : '已驳回');
+      await onRefresh();
+      setRejectOpen(false);
+      setRejectRemark('');
+    } catch (e: any) { message.error(e.error || '操作失败'); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <div>
+      <Descriptions size="small" column={2}>
+        <Descriptions.Item label="当前状态">
+          <Tag color={statusMap[status].color} style={{ borderRadius: 6, padding: '2px 10px', border: 'none' }}>
+            {statusMap[status].label}
+          </Tag>
+        </Descriptions.Item>
+        <Descriptions.Item label="提交时间">{detail.submitted_at || '-'}</Descriptions.Item>
+        <Descriptions.Item label="审批时间">{detail.approved_at || '-'}</Descriptions.Item>
+        {status === 'rejected' && (
+          <Descriptions.Item label="驳回理由" span={2}>
+            <span style={{ color: '#FF3B30' }}>{detail.approval_remark || '-'}</span>
+          </Descriptions.Item>
+        )}
+      </Descriptions>
+
+      <Space style={{ marginTop: 12 }}>
+        {can.submit && (
+          <Button type="primary" loading={loading} onClick={() => doAction('submit')}>
+            {status === 'rejected' ? '重新提交审批' : '提交审批'}
+          </Button>
+        )}
+        {can.approve && (
+          <Button type="primary" loading={loading} style={{ background: '#34C759' }} onClick={() => doAction('approve')}>
+            审批通过
+          </Button>
+        )}
+        {can.reject && (
+          <Button danger loading={loading} onClick={() => setRejectOpen(true)}>驳回</Button>
+        )}
+      </Space>
+
+      <Modal
+        title="驳回合同"
+        open={rejectOpen}
+        onCancel={() => { setRejectOpen(false); setRejectRemark(''); }}
+        onOk={() => doAction('reject', { remark: rejectRemark })}
+        okText="确认驳回"
+        okButtonProps={{ danger: true, disabled: rejectRemark.trim().length === 0 }}
+      >
+        <Input.TextArea
+          rows={3}
+          placeholder="请填写驳回理由（必填）"
+          value={rejectRemark}
+          onChange={(e) => setRejectRemark(e.target.value)}
+        />
+      </Modal>
+    </div>
+  );
+};
 import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, DollarOutlined, FileTextOutlined, ImportOutlined } from '@ant-design/icons';
 import { useLocation } from 'react-router-dom';
 import request from '../utils/request';
@@ -18,6 +108,8 @@ const paymentModeMap: Record<string, { label: string; color: string }> = {
 
 const Contracts: React.FC = () => {
   const location = useLocation();
+  const { user, isAdmin } = useAuth();
+  const currentUserId = user?.id;
   const [contracts, setContracts] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
@@ -270,9 +362,25 @@ const Contracts: React.FC = () => {
     { title: '开始日期', dataIndex: 'start_date', key: 'start_date', width: 110 },
     { title: '结束日期', dataIndex: 'end_date', key: 'end_date', width: 110 },
     {
+      title: '审批',
+      dataIndex: 'approval_status',
+      key: 'approval_status',
+      width: 90,
+      render: (v: string) => {
+        const map: Record<string, { color: string; label: string }> = {
+          draft:     { color: '#86868b', label: '草稿' },
+          submitted: { color: '#FF9500', label: '待审批' },
+          approved:  { color: '#34C759', label: '已批准' },
+          rejected:  { color: '#FF3B30', label: '已驳回' },
+        };
+        const s = map[v] || { color: '#86868b', label: v || '-' };
+        return <Tag color={s.color} style={{ borderRadius: 6, padding: '2px 10px', border: 'none' }}>{s.label}</Tag>;
+      }
+    },
+    {
       title: '操作',
       key: 'action',
-      width: 260,
+      width: 280,
       render: (_: any, record: any) => (
         <Space size="small">
           <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => showDetail(record)} style={{ color: '#007AFF' }}>详情</Button>
@@ -420,6 +528,18 @@ const Contracts: React.FC = () => {
               <Descriptions.Item label="结束日期">{detail.end_date || '-'}</Descriptions.Item>
               <Descriptions.Item label="描述" span={2}>{detail.description || '-'}</Descriptions.Item>
             </Descriptions>
+
+            <Divider titlePlacement="left" style={{ fontSize: 14, fontWeight: 600, color: '#1d1d1f' }}>审批状态</Divider>
+            <ContractApprovalPanel
+              detail={detail}
+              isAdmin={isAdmin}
+              currentUserId={currentUserId}
+              onRefresh={async () => {
+                const fresh: any = await request.get(`/contracts/${detail.id}`);
+                setDetail(fresh);
+                fetchContracts();
+              }}
+            />
 
             <Divider titlePlacement="left" style={{ fontSize: 14, fontWeight: 600, color: '#1d1d1f' }}>合同附件</Divider>
             <Attachments entity="contracts" entityId={detail.id} />

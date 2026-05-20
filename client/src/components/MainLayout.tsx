@@ -26,16 +26,22 @@ const MainLayout: React.FC = () => {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [pendingApprovals, setPendingApprovals] = useState(0);
   const { user, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const hasInitialized = useRef(false);
 
+  // 合同审批徽章
+  const renderContractLabel = () => pendingApprovals > 0
+    ? <span>合同管理 <Badge count={pendingApprovals} size="small" style={{ marginLeft: 6 }} /></span>
+    : '合同管理';
+
   const menuItems = [
     { key: '/', icon: <DashboardOutlined />, label: '仪表盘' },
     { key: '/customers', icon: <TeamOutlined />, label: '客户管理' },
     { key: '/projects', icon: <ProjectOutlined />, label: '项目管理' },
-    { key: '/contracts', icon: <FileTextOutlined />, label: '合同管理' },
+    { key: '/contracts', icon: <FileTextOutlined />, label: renderContractLabel() },
     { key: '/invoices', icon: <FileTextOutlined />, label: '发票管理' },
     { key: '/suppliers', icon: <BankOutlined />, label: '供应商管理' },
     { key: '/accounts-payable', icon: <AccountBookOutlined />, label: '应付账款' },
@@ -91,12 +97,20 @@ const MainLayout: React.FC = () => {
     if (user && !hasInitialized.current) {
       hasInitialized.current = true;
       fetchNotifications();
-      // 定时轮询未读数量
+      const fetchPending = async () => {
+        try {
+          const r: any = await request.get('/contracts/_pending_count');
+          setPendingApprovals(r.count || 0);
+        } catch { }
+      };
+      fetchPending();
+      // 定时轮询未读数量 + 待审批数
       const interval = setInterval(async () => {
         try {
           const count: any = await request.get('/notifications/unread-count');
           setUnreadCount(count.count || 0);
         } catch { }
+        fetchPending();
       }, 30000);
       return () => clearInterval(interval);
     }

@@ -1,21 +1,29 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { getDb } = require('../database');
-const { authMiddleware } = require('../middleware/auth');
+const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 const { snapshot, audit, rowsToObjects, rowToObject, generatePaymentPlans, toCents, moneyOut } = require('../lib/helpers');
 const { validateBody } = require('../lib/validate');
 const schemas = require('../schemas');
 
 const router = express.Router();
 
+// 待审批数（导航栏徽章用）。必须放在 /:id 之前，避免被通配匹配
+router.get('/_pending_count', authMiddleware, (req, res) => {
+  const r = getDb().exec(`SELECT COUNT(*) FROM contracts WHERE approval_status = 'submitted'`);
+  res.json({ count: r[0]?.values[0][0] || 0 });
+});
+
 router.get('/', authMiddleware, (req, res) => {
   const db = getDb();
   const keyword = req.query.keyword || '';
   const customer_id = req.query.customer_id || '';
+  const approval_status = req.query.approval_status || '';
   let sql = `SELECT ct.*, c.name as customer_name, p.name as project_name FROM contracts ct LEFT JOIN customers c ON ct.customer_id = c.id LEFT JOIN projects p ON ct.project_id = p.id WHERE 1=1`;
   const params = [];
   if (keyword) { sql += ` AND (ct.name LIKE ? OR ct.contract_no LIKE ?)`; params.push(`%${keyword}%`, `%${keyword}%`); }
   if (customer_id) { sql += ` AND ct.customer_id = ?`; params.push(customer_id); }
+  if (approval_status) { sql += ` AND ct.approval_status = ?`; params.push(approval_status); }
   sql += ` ORDER BY ct.created_at DESC`;
   res.json(moneyOut('contracts', rowsToObjects(db.exec(sql, params))));
 });
@@ -39,8 +47,9 @@ router.post('/', authMiddleware, validateBody(schemas.contract), (req, res) => {
   const amountCents = toCents(amount) ?? 0;
 
   const tx = db.transaction(() => {
-    db.run(`INSERT INTO contracts (id, name, customer_id, project_id, contract_no, amount, payment_mode, start_date, end_date, description, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, name, customer_id, project_id || null, contract_no || '', amountCents, payment_mode || 'monthly', start_date || null, end_date || null, description || '', req.user.id]);
+    // 新合同默认 draft，需要走审批流。submitted_by 同时记下创建人方便审计
+    db.run(`INSERT INTO contracts (id, name, customer_id, project_id, contract_no, amount, payment_mode, start_date, end_date, description, created_by, approval_status, submitted_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?)`,
+      [id, name, customer_id, project_id || null, contract_no || '', amountCents, payment_mode || 'monthly', start_date || null, end_date || null, description || '', req.user.id, req.user.id]);
 
     if (payment_plans && payment_plans.length > 0) {
       payment_plans.forEach(plan => {
@@ -77,6 +86,66 @@ router.delete('/:id', authMiddleware, (req, res) => {
   const before = snapshot('contracts', req.params.id);
   db.run(`DELETE FROM contracts WHERE id = ?`, [req.params.id]);
   audit(req, 'delete', 'contracts', req.params.id, before, null);
+  res.json({ success: true });
+});
+
+// ============ 审批工作流 ============
+// 创建人或 admin 提交审批：draft / rejected → submitted
+router.post('/:id/submit', authMiddleware, (req, res) => {
+  const db = getDb();
+  const before = snapshot('contracts', req.params.id);
+  if (!before) return res.status(404).json({ error: '合同不存在' });
+  if (!['draft', 'rejected'].includes(before.approval_status)) {
+    return res.status(400).json({ error: `当前状态 ${before.approval_status} 不可提交` });
+  }
+  if (before.created_by !== req.user.id && req.user.role !== 'admin') {
+    return res.status(403).json({ error: '只有创建人或管理员可以提交审批' });
+  }
+  db.run(
+    `UPDATE contracts SET approval_status='submitted', submitted_at=strftime('%Y-%m-%d %H:%M:%f','now','localtime'),
+       submitted_by=?, approval_remark=NULL, updated_at=datetime('now','localtime') WHERE id=?`,
+    [req.user.id, req.params.id]
+  );
+  audit(req, 'submit', 'contracts', req.params.id, before, snapshot('contracts', req.params.id));
+  res.json({ success: true });
+});
+
+// admin 审批通过：submitted → approved
+router.post('/:id/approve', authMiddleware, adminMiddleware, (req, res) => {
+  const db = getDb();
+  const before = snapshot('contracts', req.params.id);
+  if (!before) return res.status(404).json({ error: '合同不存在' });
+  if (before.approval_status !== 'submitted') {
+    return res.status(400).json({ error: '只能审批已提交的合同' });
+  }
+  db.run(
+    `UPDATE contracts SET approval_status='approved', approved_at=strftime('%Y-%m-%d %H:%M:%f','now','localtime'),
+       approved_by=?, updated_at=datetime('now','localtime') WHERE id=?`,
+    [req.user.id, req.params.id]
+  );
+  audit(req, 'approve', 'contracts', req.params.id, before, snapshot('contracts', req.params.id));
+  res.json({ success: true });
+});
+
+// admin 驳回：submitted → rejected（要写驳回理由）
+router.post('/:id/reject', authMiddleware, adminMiddleware, (req, res) => {
+  const { remark } = req.body || {};
+  if (!remark || typeof remark !== 'string' || remark.trim().length === 0) {
+    return res.status(400).json({ error: '驳回必须填写理由' });
+  }
+  const db = getDb();
+  const before = snapshot('contracts', req.params.id);
+  if (!before) return res.status(404).json({ error: '合同不存在' });
+  if (before.approval_status !== 'submitted') {
+    return res.status(400).json({ error: '只能驳回已提交的合同' });
+  }
+  db.run(
+    `UPDATE contracts SET approval_status='rejected', approval_remark=?,
+       approved_at=strftime('%Y-%m-%d %H:%M:%f','now','localtime'),
+       approved_by=?, updated_at=datetime('now','localtime') WHERE id=?`,
+    [remark.trim(), req.user.id, req.params.id]
+  );
+  audit(req, 'reject', 'contracts', req.params.id, before, snapshot('contracts', req.params.id));
   res.json({ success: true });
 });
 

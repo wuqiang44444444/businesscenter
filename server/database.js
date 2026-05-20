@@ -247,6 +247,7 @@ async function initDatabase() {
   migrateForeignKeys();
   migrateMoneyToCents();
   migrateAuditTimestampMs();
+  migrateContractApproval();
 
   // 默认管理员
   const adminRow = raw.prepare(`SELECT password, must_change_password FROM users WHERE username='admin'`).get();
@@ -423,6 +424,29 @@ function migrateAuditTimestampMs() {
   tx();
   raw.pragma('foreign_keys = ON');
   console.log('审计日志时间戳迁移完成');
+}
+
+// 给 contracts 加审批工作流字段。老数据默认 'approved' 不阻塞使用。
+function migrateContractApproval() {
+  const ID = 'contract_approval_v1';
+  const done = raw.prepare(`SELECT id FROM migrations WHERE id = ?`).get(ID);
+  if (done) return;
+
+  const cols = raw.prepare(`PRAGMA table_info(contracts)`).all().map(c => c.name);
+  const tx = raw.transaction(() => {
+    if (!cols.includes('approval_status')) {
+      raw.exec(`ALTER TABLE contracts ADD COLUMN approval_status TEXT DEFAULT 'approved'`);
+      raw.exec(`UPDATE contracts SET approval_status = 'approved' WHERE approval_status IS NULL`);
+    }
+    if (!cols.includes('approval_remark')) raw.exec(`ALTER TABLE contracts ADD COLUMN approval_remark TEXT`);
+    if (!cols.includes('submitted_at')) raw.exec(`ALTER TABLE contracts ADD COLUMN submitted_at TEXT`);
+    if (!cols.includes('submitted_by')) raw.exec(`ALTER TABLE contracts ADD COLUMN submitted_by TEXT`);
+    if (!cols.includes('approved_at')) raw.exec(`ALTER TABLE contracts ADD COLUMN approved_at TEXT`);
+    if (!cols.includes('approved_by')) raw.exec(`ALTER TABLE contracts ADD COLUMN approved_by TEXT`);
+    raw.prepare(`INSERT INTO migrations (id) VALUES (?)`).run(ID);
+  });
+  tx();
+  console.log('合同审批字段迁移完成');
 }
 
 // better-sqlite3 写入即落盘，saveDatabase 保留为 no-op 以兼容旧调用点
