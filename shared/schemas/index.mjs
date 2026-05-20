@@ -130,6 +130,16 @@ function buildSchemas(z) {
     permissions: z.array(z.string()).optional(),
     status: z.enum(['active', 'disabled']).optional(),
     password: z.string().min(6).optional(),
+    email: z.string().email().optional().or(z.literal('')),
+  });
+
+  const userCreateExt = z.object({
+    username: z.string().min(2).max(50),
+    password: z.string().min(6),
+    real_name: optionalText,
+    role: z.enum(['admin', 'user', 'finance']).optional().default('user'),
+    permissions: z.array(z.string()).optional().default([]),
+    email: z.string().email().optional().or(z.literal('')),
   });
 
   const login = z.object({
@@ -168,7 +178,7 @@ function buildSchemas(z) {
     customer, project, contract, supplier,
     accountsPayable, payablePayment,
     invoiceCreate, invoiceUpdate,
-    userCreate, userUpdate,
+    userCreate: userCreateExt, userUpdate,
     login, changePassword,
     paymentPlan, paymentPlanUpdate,
     receivableUpdate,

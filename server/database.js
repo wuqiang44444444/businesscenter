@@ -54,6 +54,7 @@ async function initDatabase() {
       permissions TEXT DEFAULT '[]',
       status TEXT DEFAULT 'active',
       must_change_password INTEGER DEFAULT 0,
+      email TEXT,
       created_at TEXT DEFAULT (datetime('now','localtime')),
       updated_at TEXT DEFAULT (datetime('now','localtime'))
     );
@@ -238,10 +239,13 @@ async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_attachments_entity ON attachments(entity_table, entity_id);
   `);
 
-  // 老库补 must_change_password 列（幂等）
+  // 老库补 must_change_password / email 列（幂等）
   const userCols = raw.prepare(`PRAGMA table_info(users)`).all();
   if (!userCols.some(c => c.name === 'must_change_password')) {
     raw.exec(`ALTER TABLE users ADD COLUMN must_change_password INTEGER DEFAULT 0`);
+  }
+  if (!userCols.some(c => c.name === 'email')) {
+    raw.exec(`ALTER TABLE users ADD COLUMN email TEXT`);
   }
 
   migrateForeignKeys();
