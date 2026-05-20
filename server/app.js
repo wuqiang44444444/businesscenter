@@ -27,6 +27,7 @@ function createApp() {
   app.use('/api/receivables', require('./routes/receivables'));
   app.use('/api/notifications', require('./routes/notifications'));
   app.use('/api/audit-log', require('./routes/audit-log'));
+  app.use('/api/import-export', require('./routes/import-export'));
 
   // ========== 生产环境：直接服务构建好的前端 ==========
   // 部署时只需 cd client && npm run build，然后跑这个 server

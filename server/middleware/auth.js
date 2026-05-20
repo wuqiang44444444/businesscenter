@@ -11,7 +11,11 @@ function authMiddleware(req, res, next) {
   if (!token) return res.status(401).json({ error: '未登录' });
   try {
     req.user = jwt.verify(token, SECRET);
-    // 实时校验用户状态：禁用用户的旧 token 不能继续使用
+  } catch {
+    return res.status(401).json({ error: 'token无效' });
+  }
+  // 实时校验用户状态：禁用用户的旧 token 不能继续使用
+  try {
     const row = getDb().exec(`SELECT status FROM users WHERE id = ?`, [req.user.id]);
     if (!row[0] || row[0].values.length === 0) {
       return res.status(401).json({ error: '用户不存在' });
@@ -20,8 +24,9 @@ function authMiddleware(req, res, next) {
       return res.status(401).json({ error: '账号已禁用' });
     }
     next();
-  } catch {
-    res.status(401).json({ error: 'token无效' });
+  } catch (e) {
+    console.error('[authMiddleware] status check failed:', e);
+    res.status(500).json({ error: '认证检查失败' });
   }
 }
 
