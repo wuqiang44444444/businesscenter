@@ -15,6 +15,7 @@ const Contracts = lazy(() => import('./pages/Contracts'));
 const Suppliers = lazy(() => import('./pages/Suppliers'));
 const AccountsPayable = lazy(() => import('./pages/AccountsPayable'));
 const Invoices = lazy(() => import('./pages/Invoices'));
+const Receivables = lazy(() => import('./pages/Receivables'));
 const Reports = lazy(() => import('./pages/Reports'));
 const BankAccounts = lazy(() => import('./pages/BankAccounts'));
 const Reimbursements = lazy(() => import('./pages/Reimbursements'));
@@ -34,6 +35,7 @@ const TITLE_MAP: Record<string, string> = {
   '/projects': '项目管理',
   '/contracts': '合同管理',
   '/invoices': '发票管理',
+  '/receivables': '应收账款',
   '/suppliers': '供应商管理',
   '/accounts-payable': '应付账款',
   '/reports': '报表统计',
@@ -111,6 +113,7 @@ const App: React.FC = () => (
               <Route path="projects" element={<Projects />} />
               <Route path="contracts" element={<Contracts />} />
               <Route path="invoices" element={<Invoices />} />
+              <Route path="receivables" element={<Receivables />} />
               <Route path="suppliers" element={<Suppliers />} />
               <Route path="accounts-payable" element={<AccountsPayable />} />
               <Route path="reports" element={<Reports />} />
