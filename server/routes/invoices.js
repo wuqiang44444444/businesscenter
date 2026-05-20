@@ -4,6 +4,7 @@ const { getDb } = require('../database');
 const { authMiddleware } = require('../middleware/auth');
 const { snapshot, audit, rowsToObjects, rowToObject, toCents, toYuan, moneyOut } = require('../lib/helpers');
 const { validateBody } = require('../lib/validate');
+const { scopeWhere, canAccess } = require('../lib/scope');
 const schemas = require('../schemas');
 
 const router = express.Router();
@@ -12,15 +13,16 @@ router.get('/', authMiddleware, (req, res) => {
   const db = getDb();
   const keyword = req.query.keyword || '';
   const status = req.query.status || '';
+  const scope = scopeWhere(req.user, 'inv');
 
   let sql = `
     SELECT inv.*, c.name as contract_name, cust.name as customer_name
     FROM invoices inv
     INNER JOIN contracts c ON inv.contract_id = c.id
     INNER JOIN customers cust ON c.customer_id = cust.id
-    WHERE 1=1
+    WHERE 1=1${scope.clause}
   `;
-  const params = [];
+  const params = [...scope.params];
   if (keyword) { sql += ` AND (inv.invoice_no LIKE ? OR c.name LIKE ?)`; params.push(`%${keyword}%`, `%${keyword}%`); }
   if (status) { sql += ` AND inv.status = ?`; params.push(status); }
   sql += ` ORDER BY inv.created_at DESC`;
@@ -37,6 +39,7 @@ router.get('/:id', authMiddleware, (req, res) => {
     WHERE inv.id = ?
   `, [req.params.id]));
   if (!obj) return res.status(404).json({ error: '发票不存在' });
+  if (!canAccess(req.user, obj)) return res.status(403).json({ error: '无权访问' });
   res.json(moneyOut('invoices', obj));
 });
 
@@ -67,9 +70,9 @@ router.post('/', authMiddleware, validateBody(schemas.invoiceCreate), (req, res)
 
   const tx = db.transaction(() => {
     db.run(`
-      INSERT INTO invoices (id, contract_id, invoice_no, invoice_type, amount, tax_rate, tax_amount, total_amount, issue_date, due_date, remark, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [id, contract_id, invoice_no, invoice_type || 'normal', amountCents, rate, taxAmountCents, totalAmountCents, issue_date || null, due_date || null, remark || '', req.user.id]);
+      INSERT INTO invoices (id, contract_id, invoice_no, invoice_type, amount, tax_rate, tax_amount, total_amount, issue_date, due_date, remark, created_by, owner_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [id, contract_id, invoice_no, invoice_type || 'normal', amountCents, rate, taxAmountCents, totalAmountCents, issue_date || null, due_date || null, remark || '', req.user.id, req.user.id]);
 
     const financeUsers = db.exec(`SELECT id FROM users WHERE role = 'finance' OR permissions LIKE '%finance%'`);
     if (financeUsers[0]) {
@@ -108,6 +111,8 @@ router.put('/:id', authMiddleware, validateBody(schemas.invoiceUpdate), (req, re
   values.push(req.params.id);
 
   const before = snapshot('invoices', req.params.id);
+  if (!before) return res.status(404).json({ error: '发票不存在' });
+  if (!canAccess(req.user, before)) return res.status(403).json({ error: '无权修改' });
   db.run(`UPDATE invoices SET ${updates.join(', ')} WHERE id=?`, values);
   audit(req, 'update', 'invoices', req.params.id, before, snapshot('invoices', req.params.id));
   res.json({ success: true });
@@ -116,6 +121,8 @@ router.put('/:id', authMiddleware, validateBody(schemas.invoiceUpdate), (req, re
 router.delete('/:id', authMiddleware, (req, res) => {
   const db = getDb();
   const before = snapshot('invoices', req.params.id);
+  if (!before) return res.status(404).json({ error: '发票不存在' });
+  if (!canAccess(req.user, before)) return res.status(403).json({ error: '无权删除' });
   db.run(`DELETE FROM invoices WHERE id = ?`, [req.params.id]);
   audit(req, 'delete', 'invoices', req.params.id, before, null);
   res.json({ success: true });

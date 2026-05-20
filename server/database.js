@@ -252,6 +252,7 @@ async function initDatabase() {
   migrateMoneyToCents();
   migrateAuditTimestampMs();
   migrateContractApproval();
+  migrateOwnerScope();
 
   // 默认管理员
   const adminRow = raw.prepare(`SELECT password, must_change_password FROM users WHERE username='admin'`).get();
@@ -428,6 +429,31 @@ function migrateAuditTimestampMs() {
   tx();
   raw.pragma('foreign_keys = ON');
   console.log('审计日志时间戳迁移完成');
+}
+
+// 业务表加 owner_id 列，老数据 fallback 到 created_by
+// 之后查询会按 owner_id 做数据权限过滤
+function migrateOwnerScope() {
+  const ID = 'owner_scope_v1';
+  const done = raw.prepare(`SELECT id FROM migrations WHERE id = ?`).get(ID);
+  if (done) return;
+
+  const tables = ['customers', 'projects', 'contracts', 'suppliers', 'accounts_payable', 'invoices'];
+  const tx = raw.transaction(() => {
+    for (const t of tables) {
+      const cols = raw.prepare(`PRAGMA table_info(${t})`).all().map(c => c.name);
+      if (!cols.includes('owner_id')) {
+        raw.exec(`ALTER TABLE ${t} ADD COLUMN owner_id TEXT`);
+      }
+      // 现有数据 owner_id ← created_by（如果列存在）
+      if (cols.includes('created_by')) {
+        raw.exec(`UPDATE ${t} SET owner_id = created_by WHERE owner_id IS NULL AND created_by IS NOT NULL`);
+      }
+    }
+    raw.prepare(`INSERT INTO migrations (id) VALUES (?)`).run(ID);
+  });
+  tx();
+  console.log('owner_id 迁移完成（数据权限隔离）');
 }
 
 // 给 contracts 加审批工作流字段。老数据默认 'approved' 不阻塞使用。

@@ -4,6 +4,7 @@ const { getDb } = require('../database');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 const { snapshot, audit, rowsToObjects, rowToObject, generatePaymentPlans, toCents, moneyOut } = require('../lib/helpers');
 const { validateBody } = require('../lib/validate');
+const { scopeWhere, canAccess } = require('../lib/scope');
 const schemas = require('../schemas');
 
 const router = express.Router();
@@ -19,8 +20,9 @@ router.get('/', authMiddleware, (req, res) => {
   const keyword = req.query.keyword || '';
   const customer_id = req.query.customer_id || '';
   const approval_status = req.query.approval_status || '';
-  let sql = `SELECT ct.*, c.name as customer_name, p.name as project_name FROM contracts ct LEFT JOIN customers c ON ct.customer_id = c.id LEFT JOIN projects p ON ct.project_id = p.id WHERE 1=1`;
-  const params = [];
+  const scope = scopeWhere(req.user, 'ct');
+  let sql = `SELECT ct.*, c.name as customer_name, p.name as project_name FROM contracts ct LEFT JOIN customers c ON ct.customer_id = c.id LEFT JOIN projects p ON ct.project_id = p.id WHERE 1=1${scope.clause}`;
+  const params = [...scope.params];
   if (keyword) { sql += ` AND (ct.name LIKE ? OR ct.contract_no LIKE ?)`; params.push(`%${keyword}%`, `%${keyword}%`); }
   if (customer_id) { sql += ` AND ct.customer_id = ?`; params.push(customer_id); }
   if (approval_status) { sql += ` AND ct.approval_status = ?`; params.push(approval_status); }
@@ -35,6 +37,7 @@ router.get('/:id', authMiddleware, (req, res) => {
     [req.params.id]
   ));
   if (!obj) return res.status(404).json({ error: '合同不存在' });
+  if (!canAccess(req.user, obj)) return res.status(403).json({ error: '无权访问' });
   moneyOut('contracts', obj);
   obj.payment_plans = moneyOut('payment_plans', rowsToObjects(db.exec(`SELECT * FROM payment_plans WHERE contract_id = ? ORDER BY due_date`, [req.params.id])));
   res.json(obj);
@@ -48,8 +51,8 @@ router.post('/', authMiddleware, validateBody(schemas.contract), (req, res) => {
 
   const tx = db.transaction(() => {
     // 新合同默认 draft，需要走审批流。submitted_by 同时记下创建人方便审计
-    db.run(`INSERT INTO contracts (id, name, customer_id, project_id, contract_no, amount, payment_mode, start_date, end_date, description, created_by, approval_status, submitted_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?)`,
-      [id, name, customer_id, project_id || null, contract_no || '', amountCents, payment_mode || 'monthly', start_date || null, end_date || null, description || '', req.user.id, req.user.id]);
+    db.run(`INSERT INTO contracts (id, name, customer_id, project_id, contract_no, amount, payment_mode, start_date, end_date, description, created_by, owner_id, approval_status, submitted_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?)`,
+      [id, name, customer_id, project_id || null, contract_no || '', amountCents, payment_mode || 'monthly', start_date || null, end_date || null, description || '', req.user.id, req.user.id, req.user.id]);
 
     if (payment_plans && payment_plans.length > 0) {
       payment_plans.forEach(plan => {
@@ -75,6 +78,8 @@ router.put('/:id', authMiddleware, validateBody(schemas.contract), (req, res) =>
   const { name, customer_id, project_id, contract_no, amount, payment_mode, start_date, end_date, status, description } = req.body;
   const db = getDb();
   const before = snapshot('contracts', req.params.id);
+  if (!before) return res.status(404).json({ error: '合同不存在' });
+  if (!canAccess(req.user, before)) return res.status(403).json({ error: '无权修改' });
   db.run(`UPDATE contracts SET name=?, customer_id=?, project_id=?, contract_no=?, amount=?, payment_mode=?, start_date=?, end_date=?, status=?, description=?, updated_at=datetime('now','localtime') WHERE id=?`,
     [name, customer_id, project_id || null, contract_no || '', toCents(amount) ?? 0, payment_mode || 'monthly', start_date || null, end_date || null, status || 'active', description || '', req.params.id]);
   audit(req, 'update', 'contracts', req.params.id, before, snapshot('contracts', req.params.id));
@@ -84,6 +89,8 @@ router.put('/:id', authMiddleware, validateBody(schemas.contract), (req, res) =>
 router.delete('/:id', authMiddleware, (req, res) => {
   const db = getDb();
   const before = snapshot('contracts', req.params.id);
+  if (!before) return res.status(404).json({ error: '合同不存在' });
+  if (!canAccess(req.user, before)) return res.status(403).json({ error: '无权删除' });
   db.run(`DELETE FROM contracts WHERE id = ?`, [req.params.id]);
   audit(req, 'delete', 'contracts', req.params.id, before, null);
   res.json({ success: true });
