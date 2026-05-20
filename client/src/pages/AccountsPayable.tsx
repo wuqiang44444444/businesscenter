@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Table, Button, Modal, Form, Input, Select, Space, Card, Tag, Popconfirm, message, InputNumber, DatePicker, Descriptions, Divider, Statistic, Row, Col, Progress } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, DollarOutlined, EyeOutlined, ImportOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, DollarOutlined, EyeOutlined, ImportOutlined, PrinterOutlined } from '@ant-design/icons';
 import request from '../utils/request';
 import dayjs from 'dayjs';
 import Attachments from '../components/Attachments';
@@ -294,7 +294,11 @@ const AccountsPayable: React.FC = () => {
         title="应付账款详情"
         open={detailOpen}
         onCancel={() => setDetailOpen(false)}
-        footer={null}
+        footer={detail ? (
+          <Button icon={<PrinterOutlined />} onClick={() => window.open(`/api/print/payment-notice/${detail.id}`, '_blank')} type="primary">
+            打印付款通知单
+          </Button>
+        ) : null}
         width={720}
         styles={{ body: { padding: '24px' } }}
       >

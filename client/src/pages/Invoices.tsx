@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Table, Button, Modal, Form, Input, Select, Space, Card, Tag, Popconfirm, message, InputNumber, DatePicker, Row, Col, Statistic, Radio } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, SearchOutlined, ImportOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, SearchOutlined, ImportOutlined, PrinterOutlined } from '@ant-design/icons';
 import request from '../utils/request';
 import dayjs from 'dayjs';
 import ImportExportModal from '../components/ImportExportModal';
@@ -314,7 +314,11 @@ const Invoices: React.FC = () => {
         title="发票详情"
         open={detailOpen}
         onCancel={() => setDetailOpen(false)}
-        footer={null}
+        footer={detail ? (
+          <Button icon={<PrinterOutlined />} onClick={() => window.open(`/api/print/invoice/${detail.id}`, '_blank')} type="primary">
+            打印发票
+          </Button>
+        ) : null}
         width={600}
         styles={{ body: { padding: '24px' } }}
       >

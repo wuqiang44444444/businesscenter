@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Table, Button, Modal, Form, Input, Select, Space, Card, Tag, Popconfirm, message } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, ImportOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, ImportOutlined, PrinterOutlined } from '@ant-design/icons';
 import request from '../utils/request';
 import ImportExportModal from '../components/ImportExportModal';
 
@@ -76,9 +76,10 @@ const Customers: React.FC = () => {
     { title: '合同数', dataIndex: 'contract_count', key: 'contract_count', render: (v: number) => <Tag color="#007AFF" style={{ borderRadius: 6, padding: '2px 10px', border: 'none' }}>{v || 0}</Tag> },
     { title: '创建时间', dataIndex: 'created_at', key: 'created_at' },
     {
-      title: '操作', key: 'action', width: 150,
+      title: '操作', key: 'action', width: 220,
       render: (_: any, record: any) => (
         <Space>
+          <Button type="link" size="small" icon={<PrinterOutlined />} onClick={() => window.open(`/api/print/statement/${record.id}`, '_blank')} style={{ color: '#007AFF' }}>对账单</Button>
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openEdit(record)} style={{ color: '#007AFF' }}>编辑</Button>
           <Popconfirm title="确定删除此客户？" onConfirm={() => handleDelete(record.id)}>
             <Button type="link" size="small" danger icon={<DeleteOutlined />} style={{ color: '#FF3B30' }}>删除</Button>
