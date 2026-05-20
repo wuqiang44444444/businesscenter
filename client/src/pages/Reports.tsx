@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Row, Col, Statistic, Table, Tag, Progress, Empty, Spin, Tabs, message } from 'antd';
+import { Card, Row, Col, Statistic, Table, Tag, Progress, Empty, Spin, Tabs, Select, message } from 'antd';
 import { ArrowUpOutlined, ArrowDownOutlined, AlertOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import request from '../utils/request';
 
@@ -15,6 +15,14 @@ interface MonthlyTrend { month: string; received: number; expected: number; paid
 interface OverdueBucket { count: number; amount: number; items: any[] }
 interface OverdueReport { receivable: { '0-30': OverdueBucket; '31-60': OverdueBucket; '60+': OverdueBucket }; payable: { '0-30': OverdueBucket; '31-60': OverdueBucket; '60+': OverdueBucket } }
 interface ContractStatus { by_status: { status: string; count: number; amount: number }[]; expiring_soon: any[] }
+interface TaxMonthly { month: string; amount: number; tax_amount: number; total_amount: number; invoice_count?: number; special_count?: number; bill_count?: number }
+interface TaxSummary {
+  year: number;
+  sales: { monthly: TaxMonthly[]; total_amount: number; total_tax: number; total_with_tax: number; invoice_count: number };
+  purchases: { monthly: TaxMonthly[]; total_amount: number; total_tax: number; total_with_tax: number; bill_count: number };
+  monthly_net: { month: string; sales_tax: number; purchases_tax: number; net_payable: number }[];
+  net_payable: number;
+}
 
 const yuan = (n: number) => `¥${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -81,6 +89,9 @@ const Reports: React.FC = () => {
   const [trend, setTrend] = useState<MonthlyTrend[]>([]);
   const [overdue, setOverdue] = useState<OverdueReport | null>(null);
   const [contractStatus, setContractStatus] = useState<ContractStatus | null>(null);
+  const [taxYear, setTaxYear] = useState<number>(new Date().getFullYear());
+  const [taxSummary, setTaxSummary] = useState<TaxSummary | null>(null);
+  const [taxLoading, setTaxLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -105,6 +116,18 @@ const Reports: React.FC = () => {
       } finally { setLoading(false); }
     })();
   }, []);
+
+  useEffect(() => {
+    (async () => {
+      setTaxLoading(true);
+      try {
+        const r: any = await request.get(`/reports/tax-summary?year=${taxYear}`);
+        setTaxSummary(r);
+      } catch (e: any) {
+        message.error(e.error || '加载税务汇总失败');
+      } finally { setTaxLoading(false); }
+    })();
+  }, [taxYear]);
 
   if (loading || !summary) return <div style={{ display: 'flex', justifyContent: 'center', padding: 80 }}><Spin size="large" /></div>;
 
@@ -307,6 +330,104 @@ const Reports: React.FC = () => {
           </Col>
         </Row>
       )}
+
+      {/* ===== 7. 增值税进项 / 销项 月报 ===== */}
+      <Card
+        title={<span style={{ fontSize: 15, fontWeight: 600 }}>🧾 增值税进项 / 销项 月报</span>}
+        extra={
+          <Select
+            value={taxYear}
+            onChange={setTaxYear}
+            style={{ width: 120 }}
+            options={Array.from({ length: 6 }, (_, i) => {
+              const y = new Date().getFullYear() - i;
+              return { value: y, label: `${y} 年` };
+            })}
+          />
+        }
+      >
+        {taxLoading || !taxSummary ? (
+          <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
+        ) : (
+          <>
+            <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+              <Col xs={24} md={8}>
+                <Card styles={{ body: { padding: 16 } }} style={{ borderLeft: `4px solid #5AC8FA` }}>
+                  <Statistic
+                    title={`${taxYear} 年销项税`}
+                    value={taxSummary.sales.total_tax}
+                    precision={2}
+                    prefix="¥"
+                    valueStyle={{ color: '#5AC8FA' }}
+                  />
+                  <div style={{ fontSize: 12, color: '#86868b', marginTop: 4 }}>
+                    {taxSummary.sales.invoice_count} 张发票 · 含税 ¥{taxSummary.sales.total_with_tax.toLocaleString()}
+                  </div>
+                </Card>
+              </Col>
+              <Col xs={24} md={8}>
+                <Card styles={{ body: { padding: 16 } }} style={{ borderLeft: `4px solid #FF9500` }}>
+                  <Statistic
+                    title={`${taxYear} 年进项税`}
+                    value={taxSummary.purchases.total_tax}
+                    precision={2}
+                    prefix="¥"
+                    valueStyle={{ color: '#FF9500' }}
+                  />
+                  <div style={{ fontSize: 12, color: '#86868b', marginTop: 4 }}>
+                    {taxSummary.purchases.bill_count} 笔应付 · 含税 ¥{taxSummary.purchases.total_with_tax.toLocaleString()}
+                  </div>
+                </Card>
+              </Col>
+              <Col xs={24} md={8}>
+                <Card styles={{ body: { padding: 16 } }} style={{ borderLeft: `4px solid ${taxSummary.net_payable >= 0 ? '#FF3B30' : '#34C759'}` }}>
+                  <Statistic
+                    title="应纳税额估算（销项 - 进项）"
+                    value={Math.abs(taxSummary.net_payable)}
+                    precision={2}
+                    prefix={taxSummary.net_payable < 0 ? '留抵 ¥' : '¥'}
+                    valueStyle={{ color: taxSummary.net_payable >= 0 ? '#FF3B30' : '#34C759' }}
+                  />
+                  <div style={{ fontSize: 12, color: '#86868b', marginTop: 4 }}>
+                    {taxSummary.net_payable < 0 ? '进项大于销项，可结转抵扣' : '仅供参考，以税务系统为准'}
+                  </div>
+                </Card>
+              </Col>
+            </Row>
+            <Table
+              size="small"
+              dataSource={taxSummary.monthly_net.map((m, i) => ({
+                key: m.month,
+                month: m.month,
+                sales_amount: taxSummary.sales.monthly[i]?.amount || 0,
+                sales_tax: m.sales_tax,
+                purchases_amount: taxSummary.purchases.monthly[i]?.amount || 0,
+                purchases_tax: m.purchases_tax,
+                net_payable: m.net_payable,
+              }))}
+              pagination={false}
+              columns={[
+                { title: '月份', dataIndex: 'month', key: 'm', width: 90 },
+                { title: '销项不含税', dataIndex: 'sales_amount', key: 'sa', align: 'right', render: yuan },
+                { title: '销项税', dataIndex: 'sales_tax', key: 'st', align: 'right', render: (v: number) => <span style={{ color: '#5AC8FA' }}>{yuan(v)}</span> },
+                { title: '进项不含税', dataIndex: 'purchases_amount', key: 'pa', align: 'right', render: yuan },
+                { title: '进项税', dataIndex: 'purchases_tax', key: 'pt', align: 'right', render: (v: number) => <span style={{ color: '#FF9500' }}>{yuan(v)}</span> },
+                {
+                  title: '本月应纳',
+                  dataIndex: 'net_payable',
+                  key: 'np',
+                  align: 'right',
+                  render: (v: number) => (
+                    <strong style={{ color: v >= 0 ? '#FF3B30' : '#34C759' }}>
+                      {v < 0 ? `留抵 ${yuan(-v)}` : yuan(v)}
+                    </strong>
+                  ),
+                },
+              ]}
+            />
+          </>
+        )}
+      </Card>
     </div>
   );
 };

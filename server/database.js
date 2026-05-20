@@ -150,6 +150,8 @@ async function initDatabase() {
       due_date TEXT,
       status TEXT DEFAULT 'pending',
       invoice_no TEXT,
+      tax_rate REAL DEFAULT 0.13,
+      tax_amount REAL DEFAULT 0,
       description TEXT,
       created_by TEXT,
       created_at TEXT DEFAULT (datetime('now','localtime')),
@@ -291,6 +293,7 @@ async function initDatabase() {
   migrateContractApproval();
   migrateOwnerScope();
   migrateBankAccounts();
+  migrateAccountsPayableTax();
 
   // 默认管理员
   const adminRow = raw.prepare(`SELECT password, must_change_password FROM users WHERE username='admin'`).get();
@@ -467,6 +470,34 @@ function migrateAuditTimestampMs() {
   tx();
   raw.pragma('foreign_keys = ON');
   console.log('审计日志时间戳迁移完成');
+}
+
+// 应付账款加进项税字段：tax_rate（小数，默认 0.13）+ tax_amount（分，写入时计算）
+// amount 视为含税总额（保留旧语义），tax_amount = round(amount * rate / (1 + rate))
+function migrateAccountsPayableTax() {
+  const ID = 'ap_tax_v1';
+  const done = raw.prepare(`SELECT id FROM migrations WHERE id = ?`).get(ID);
+  if (done) return;
+
+  const cols = raw.prepare(`PRAGMA table_info(accounts_payable)`).all().map(c => c.name);
+  const tx = raw.transaction(() => {
+    if (!cols.includes('tax_rate')) {
+      raw.exec(`ALTER TABLE accounts_payable ADD COLUMN tax_rate REAL DEFAULT 0.13`);
+    }
+    if (!cols.includes('tax_amount')) {
+      raw.exec(`ALTER TABLE accounts_payable ADD COLUMN tax_amount REAL DEFAULT 0`);
+    }
+    // 老数据 NULL → 默认 0.13 + 自动算 tax_amount（仅当 amount 已是分）
+    raw.exec(`UPDATE accounts_payable SET tax_rate = 0.13 WHERE tax_rate IS NULL`);
+    raw.exec(`
+      UPDATE accounts_payable
+      SET tax_amount = ROUND(amount * tax_rate / (1 + tax_rate))
+      WHERE (tax_amount IS NULL OR tax_amount = 0) AND amount > 0 AND tax_rate > 0
+    `);
+    raw.prepare(`INSERT INTO migrations (id) VALUES (?)`).run(ID);
+  });
+  tx();
+  console.log('应付账款进项税字段迁移完成');
 }
 
 // 给 payable_payments 和 payment_plans 加 bank_account_id 列

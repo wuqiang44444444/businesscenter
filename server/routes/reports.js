@@ -247,4 +247,107 @@ router.get('/contract-status', authMiddleware, (req, res) => {
   });
 });
 
+// ============ 7. 增值税进项 / 销项 月报 ============
+// 销项：以发票 issue_date 落在指定年份，按月聚合 invoices.tax_amount / amount / total_amount
+// 进项：以应付账款 created_at 落在指定年份，按月聚合 accounts_payable.tax_amount 反算的进项税
+// 应纳税额 = 销项税额 - 进项税额（仅供参考，不替代会计准则）
+router.get('/tax-summary', authMiddleware, (req, res) => {
+  const year = parseInt(req.query.year, 10);
+  if (!year || year < 2000 || year > 2100) {
+    return res.status(400).json({ error: 'year 必填，格式 YYYY' });
+  }
+  const db = getDb();
+  const yearStr = String(year);
+
+  // 销项：仅取已开票 / 已收款的发票（不含 cancelled）
+  const salesRows = db.exec(`
+    SELECT strftime('%Y-%m', issue_date) AS month,
+      COALESCE(SUM(amount), 0) AS amount,
+      COALESCE(SUM(tax_amount), 0) AS tax_amount,
+      COALESCE(SUM(total_amount), 0) AS total_amount,
+      COUNT(*) AS invoice_count,
+      SUM(CASE WHEN invoice_type = 'special' THEN 1 ELSE 0 END) AS special_count
+    FROM invoices
+    WHERE issue_date IS NOT NULL
+      AND strftime('%Y', issue_date) = ?
+      AND status != 'cancelled'
+    GROUP BY month
+    ORDER BY month
+  `, [yearStr]);
+
+  // 进项：以 accounts_payable 落库日期（created_at）的月份归集
+  // amount 是含税总额，tax_amount 是反算的进项税；不含税 = amount - tax_amount
+  const purchasesRows = db.exec(`
+    SELECT strftime('%Y-%m', created_at) AS month,
+      COALESCE(SUM(amount - tax_amount), 0) AS amount,
+      COALESCE(SUM(tax_amount), 0) AS tax_amount,
+      COALESCE(SUM(amount), 0) AS total_amount,
+      COUNT(*) AS bill_count
+    FROM accounts_payable
+    WHERE created_at IS NOT NULL
+      AND strftime('%Y', created_at) = ?
+    GROUP BY month
+    ORDER BY month
+  `, [yearStr]);
+
+  const fillMonths = (rows, extra = {}) => {
+    const map = new Map();
+    for (const r of rowsToObjects(rows)) {
+      if (!r.month) continue;
+      map.set(r.month, r);
+    }
+    const out = [];
+    for (let m = 1; m <= 12; m++) {
+      const key = `${yearStr}-${String(m).padStart(2, '0')}`;
+      const r = map.get(key);
+      out.push({
+        month: key,
+        amount: yuan(r?.amount || 0),
+        tax_amount: yuan(r?.tax_amount || 0),
+        total_amount: yuan(r?.total_amount || 0),
+        ...Object.fromEntries(Object.keys(extra).map(k => [k, r?.[k] || 0])),
+      });
+    }
+    return out;
+  };
+
+  const sales = fillMonths(salesRows, { invoice_count: 0, special_count: 0 });
+  const purchases = fillMonths(purchasesRows, { bill_count: 0 });
+
+  // 年度合计 + 应纳税估算（每月 销项税 - 进项税，负数表示留抵）
+  const sum = (arr, key) => arr.reduce((s, x) => s + (x[key] || 0), 0);
+  const salesTaxTotal = sum(sales, 'tax_amount');
+  const purchasesTaxTotal = sum(purchases, 'tax_amount');
+
+  const monthly_net = [];
+  for (let i = 0; i < 12; i++) {
+    monthly_net.push({
+      month: sales[i].month,
+      sales_tax: sales[i].tax_amount,
+      purchases_tax: purchases[i].tax_amount,
+      net_payable: Number((sales[i].tax_amount - purchases[i].tax_amount).toFixed(2)),
+    });
+  }
+
+  res.json({
+    year,
+    sales: {
+      monthly: sales,
+      total_amount: Number(sum(sales, 'amount').toFixed(2)),
+      total_tax: Number(salesTaxTotal.toFixed(2)),
+      total_with_tax: Number(sum(sales, 'total_amount').toFixed(2)),
+      invoice_count: sales.reduce((s, x) => s + (x.invoice_count || 0), 0),
+    },
+    purchases: {
+      monthly: purchases,
+      total_amount: Number(sum(purchases, 'amount').toFixed(2)),
+      total_tax: Number(purchasesTaxTotal.toFixed(2)),
+      total_with_tax: Number(sum(purchases, 'total_amount').toFixed(2)),
+      bill_count: purchases.reduce((s, x) => s + (x.bill_count || 0), 0),
+    },
+    monthly_net,
+    net_payable: Number((salesTaxTotal - purchasesTaxTotal).toFixed(2)),
+  });
+});
+
 module.exports = router;

@@ -36,24 +36,34 @@ router.get('/:id', authMiddleware, (req, res) => {
   res.json(obj);
 });
 
+// amount 视为含税总额；tax_amount = round(amount_cents * rate / (1 + rate))，进项税通过反算得到
+function computeTax(amountYuan, taxRate) {
+  const amountCents = toCents(amountYuan) ?? 0;
+  const rate = (taxRate ?? 0.13);
+  const taxCents = rate > 0 ? Math.round(amountCents * rate / (1 + rate)) : 0;
+  return { amountCents, rate, taxCents };
+}
+
 router.post('/', authMiddleware, validateBody(schemas.accountsPayable), (req, res) => {
-  const { supplier_id, project_id, title, amount, due_date, invoice_no, description } = req.body;
+  const { supplier_id, project_id, title, amount, due_date, invoice_no, description, tax_rate } = req.body;
   const db = getDb();
   const id = uuidv4();
-  db.run(`INSERT INTO accounts_payable (id, supplier_id, project_id, title, amount, due_date, invoice_no, description, created_by, owner_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, supplier_id, project_id || null, title, toCents(amount) ?? 0, due_date || null, invoice_no || '', description || '', req.user.id, req.user.id]);
+  const { amountCents, rate, taxCents } = computeTax(amount, tax_rate);
+  db.run(`INSERT INTO accounts_payable (id, supplier_id, project_id, title, amount, tax_rate, tax_amount, due_date, invoice_no, description, created_by, owner_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, supplier_id, project_id || null, title, amountCents, rate, taxCents, due_date || null, invoice_no || '', description || '', req.user.id, req.user.id]);
   audit(req, 'create', 'accounts_payable', id, null, snapshot('accounts_payable', id));
   res.json({ id });
 });
 
 router.put('/:id', authMiddleware, validateBody(schemas.accountsPayable), (req, res) => {
-  const { supplier_id, project_id, title, amount, due_date, invoice_no, description, status } = req.body;
+  const { supplier_id, project_id, title, amount, due_date, invoice_no, description, status, tax_rate } = req.body;
   const db = getDb();
   const before = snapshot('accounts_payable', req.params.id);
   if (!before) return res.status(404).json({ error: '应付账款不存在' });
   if (!canAccess(req.user, before)) return res.status(403).json({ error: '无权修改' });
-  db.run(`UPDATE accounts_payable SET supplier_id=?, project_id=?, title=?, amount=?, due_date=?, invoice_no=?, description=?, status=?, updated_at=datetime('now','localtime') WHERE id=?`,
-    [supplier_id, project_id || null, title, toCents(amount) ?? 0, due_date || null, invoice_no || '', description || '', status || 'pending', req.params.id]);
+  const { amountCents, rate, taxCents } = computeTax(amount, tax_rate);
+  db.run(`UPDATE accounts_payable SET supplier_id=?, project_id=?, title=?, amount=?, tax_rate=?, tax_amount=?, due_date=?, invoice_no=?, description=?, status=?, updated_at=datetime('now','localtime') WHERE id=?`,
+    [supplier_id, project_id || null, title, amountCents, rate, taxCents, due_date || null, invoice_no || '', description || '', status || 'pending', req.params.id]);
   audit(req, 'update', 'accounts_payable', req.params.id, before, snapshot('accounts_payable', req.params.id));
   res.json({ success: true });
 });

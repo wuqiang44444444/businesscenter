@@ -83,6 +83,7 @@ function buildSchemas(z) {
     invoice_no: optionalText,
     description: optionalText,
     status: z.enum(['pending', 'partial', 'paid']).optional().default('pending'),
+    tax_rate: z.number().min(0).max(1).optional().default(0.13),
   });
 
   const payablePayment = z.object({

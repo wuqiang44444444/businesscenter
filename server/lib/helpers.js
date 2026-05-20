@@ -96,7 +96,7 @@ function generatePaymentPlans(contractId, mode, amount, startDate) {
 const MONEY_FIELDS_BY_TABLE = {
   contracts: ['amount'],
   payment_plans: ['amount'],
-  accounts_payable: ['amount', 'paid_amount'],
+  accounts_payable: ['amount', 'paid_amount', 'tax_amount'],
   payable_payments: ['amount'],
   invoices: ['amount', 'tax_amount', 'total_amount'],
   projects: ['budget'],

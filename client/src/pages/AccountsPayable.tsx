@@ -380,15 +380,26 @@ const AccountsPayable: React.FC = () => {
             </Form.Item>
           </Space>
           <Space style={{ width: '100%' }} size="large">
-            <Form.Item name="amount" label="应付金额" rules={[{ required: true, message: '请输入金额' }]}>
+            <Form.Item name="amount" label="应付金额（含税）" rules={[{ required: true, message: '请输入金额' }]}>
               <InputNumber style={{ width: 220, borderRadius: 10 }} min={0} precision={2} placeholder="金额" addonAfter="元" />
             </Form.Item>
-            <Form.Item name="due_date" label="到期日">
-              <DatePicker style={{ width: 220, borderRadius: 10 }} />
+            <Form.Item name="tax_rate" label="税率" initialValue={0.13} tooltip="用于税务汇总反算进项税。如对方不能开发票或不需要抵扣，填 0">
+              <Select style={{ width: 220, borderRadius: 10 }}>
+                <Select.Option value={0}>0%（无税票）</Select.Option>
+                <Select.Option value={0.03}>3%（小规模）</Select.Option>
+                <Select.Option value={0.06}>6%（服务）</Select.Option>
+                <Select.Option value={0.09}>9%（交通/建筑）</Select.Option>
+                <Select.Option value={0.13}>13%（销售/进口）</Select.Option>
+              </Select>
             </Form.Item>
           </Space>
           <Space style={{ width: '100%' }} size="large">
+            <Form.Item name="due_date" label="到期日">
+              <DatePicker style={{ width: 220, borderRadius: 10 }} />
+            </Form.Item>
             <Form.Item name="invoice_no" label="发票号"><Input placeholder="发票号" style={{ width: 220, borderRadius: 10 }} /></Form.Item>
+          </Space>
+          <Space style={{ width: '100%' }} size="large">
             <Form.Item name="status" label="状态" initialValue="pending">
               <Select style={{ width: 220, borderRadius: 10 }}>
                 <Select.Option value="pending">待付款</Select.Option>
