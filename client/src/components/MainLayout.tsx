@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { Layout, Menu, Dropdown, Avatar, Tag, Badge, List } from 'antd';
+import { Layout, Menu, Dropdown, Avatar, Tag, Badge, List, Drawer } from 'antd';
+import { useIsMobile } from '../hooks/useResponsive';
 import {
   DashboardOutlined,
   TeamOutlined,
@@ -22,7 +23,9 @@ import request from '../utils/request';
 const { Header, Sider, Content } = Layout;
 
 const MainLayout: React.FC = () => {
+  const isMobile = useIsMobile();
   const [collapsed, setCollapsed] = React.useState(false);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -157,63 +160,90 @@ const MainLayout: React.FC = () => {
     return '用户';
   };
 
+  // 侧边栏的内容片段（PC 嵌在 Sider，移动端嵌在 Drawer）
+  const sidebarBody = (
+    <>
+      <div style={{
+        height: 64,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#fff',
+        fontSize: collapsed && !isMobile ? 18 : 20,
+        fontWeight: 600,
+        borderBottom: '1px solid rgba(255,255,255,0.08)',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        letterSpacing: collapsed && !isMobile ? 0 : 1,
+      }}>
+        {collapsed && !isMobile ? (
+          <span style={{ background: 'linear-gradient(135deg, #007AFF, #5AC8FA)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontSize: 22, fontWeight: 700 }}>B</span>
+        ) : (
+          <span style={{ background: 'linear-gradient(135deg, #007AFF, #5AC8FA)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontSize: 22, fontWeight: 700, letterSpacing: 1 }}>
+            Business
+          </span>
+        )}
+      </div>
+      <Menu
+        theme="dark"
+        mode="inline"
+        selectedKeys={[location.pathname]}
+        items={menuItems}
+        onClick={({ key }) => {
+          navigate(key);
+          if (isMobile) setMobileDrawerOpen(false);
+        }}
+        style={{
+          borderRight: 0,
+          background: 'transparent',
+          fontSize: 14,
+          padding: '12px 8px',
+        }}
+      />
+    </>
+  );
+
   return (
     <Layout style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f5f7fa 0%, #eaeef5 100%)' }}>
-      <Sider
-        trigger={null}
-        collapsible
-        collapsed={collapsed}
-        width={232}
-        style={{
-          overflow: 'auto',
-          height: '100vh',
-          position: 'fixed',
-          left: 0,
-          top: 0,
-          bottom: 0,
-          background: 'linear-gradient(180deg, #1a1a2e 0%, #16213e 100%)',
-          boxShadow: '1px 0 0 rgba(0,0,0,0.04), 4px 0 24px rgba(0,0,0,0.06)',
-          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-        }}
-      >
-        <div style={{
-          height: 64,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#fff',
-          fontSize: collapsed ? 18 : 20,
-          fontWeight: 600,
-          borderBottom: '1px solid rgba(255,255,255,0.08)',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          letterSpacing: collapsed ? 0 : 1,
-        }}>
-          {collapsed ? (
-            <span style={{ background: 'linear-gradient(135deg, #007AFF, #5AC8FA)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontSize: 22, fontWeight: 700, letterSpacing: 0 }}>B</span>
-          ) : (
-            <span style={{ background: 'linear-gradient(135deg, #007AFF, #5AC8FA)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontSize: 22, fontWeight: 700, letterSpacing: 1 }}>
-              Business
-            </span>
-          )}
-        </div>
-        <Menu
-          theme="dark"
-          mode="inline"
-          selectedKeys={[location.pathname]}
-          items={menuItems}
-          onClick={({ key }) => navigate(key)}
-          style={{
-            borderRight: 0,
-            background: 'transparent',
-            fontSize: 14,
-            padding: '12px 8px',
+      {/* 移动端：Drawer；PC：固定 Sider */}
+      {isMobile ? (
+        <Drawer
+          placement="left"
+          width={232}
+          open={mobileDrawerOpen}
+          onClose={() => setMobileDrawerOpen(false)}
+          closable={false}
+          styles={{
+            body: { padding: 0, background: 'linear-gradient(180deg, #1a1a2e 0%, #16213e 100%)' },
+            header: { display: 'none' },
           }}
-        />
-      </Sider>
-      <Layout style={{ marginLeft: collapsed ? 80 : 232, transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)' }}>
+        >
+          {sidebarBody}
+        </Drawer>
+      ) : (
+        <Sider
+          trigger={null}
+          collapsible
+          collapsed={collapsed}
+          width={232}
+          style={{
+            overflow: 'auto',
+            height: '100vh',
+            position: 'fixed',
+            left: 0,
+            top: 0,
+            bottom: 0,
+            background: 'linear-gradient(180deg, #1a1a2e 0%, #16213e 100%)',
+            boxShadow: '1px 0 0 rgba(0,0,0,0.04), 4px 0 24px rgba(0,0,0,0.06)',
+            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+          }}
+        >
+          {sidebarBody}
+        </Sider>
+      )}
+      <Layout style={{ marginLeft: isMobile ? 0 : (collapsed ? 80 : 232), transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)' }}>
         <Header style={{
-          padding: '0 28px',
+          padding: isMobile ? '0 14px' : '0 28px',
           height: 60,
           lineHeight: '60px',
           background: 'rgba(255, 255, 255, 0.78)',
@@ -227,10 +257,13 @@ const MainLayout: React.FC = () => {
           top: 0,
           zIndex: 10,
         }}>
-          <div style={{ cursor: 'pointer', fontSize: 18, color: '#1d1d1f' }} onClick={() => setCollapsed(!collapsed)}>
-            {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+          <div
+            style={{ cursor: 'pointer', fontSize: 18, color: '#1d1d1f' }}
+            onClick={() => isMobile ? setMobileDrawerOpen(true) : setCollapsed(!collapsed)}
+          >
+            {(isMobile ? false : collapsed) ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 16 }}>
             {/* 通知铃铛 */}
             <Dropdown
               open={notificationsOpen}
@@ -281,22 +314,26 @@ const MainLayout: React.FC = () => {
 
             {/* 用户信息 */}
             <Dropdown menu={dropdownItems}>
-              <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 10 }}>
                 <Avatar
+                  size={isMobile ? 32 : undefined}
                   style={{
                     background: 'linear-gradient(135deg, #007AFF, #5AC8FA)',
                     boxShadow: '0 2px 8px rgba(0,122,255,0.3)'
                   }}
                   icon={<UserOutlined />}
                 />
-                <span style={{ color: '#1d1d1f', fontSize: 15, fontWeight: 500 }}>{user?.real_name || user?.username}</span>
+                {!isMobile && (
+                  <span style={{ color: '#1d1d1f', fontSize: 15, fontWeight: 500 }}>{user?.real_name || user?.username}</span>
+                )}
                 <Tag
                   color={getRoleColor(user?.role || 'user')}
                   style={{
                     borderRadius: 6,
-                    fontSize: 12,
-                    padding: '2px 10px',
-                    border: 'none'
+                    fontSize: isMobile ? 11 : 12,
+                    padding: isMobile ? '1px 6px' : '2px 10px',
+                    border: 'none',
+                    margin: 0,
                   }}
                 >
                   {getRoleLabel(user?.role || 'user')}
@@ -306,15 +343,16 @@ const MainLayout: React.FC = () => {
           </div>
         </Header>
         <Content style={{
-          margin: '20px 24px 24px',
-          padding: '24px 28px',
-          minHeight: 'calc(100vh - 104px)',
+          margin: isMobile ? '12px 8px 12px' : '20px 24px 24px',
+          padding: isMobile ? '14px 12px' : '24px 28px',
+          minHeight: 'calc(100vh - 84px)',
           background: 'rgba(255, 255, 255, 0.85)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
-          borderRadius: 16,
+          borderRadius: isMobile ? 12 : 16,
           boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 6px 24px rgba(0,0,0,0.04)',
           border: '1px solid rgba(255,255,255,0.5)',
+          overflowX: 'auto',
         }}>
           <Outlet />
         </Content>

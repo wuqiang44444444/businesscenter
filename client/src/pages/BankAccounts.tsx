@@ -130,6 +130,7 @@ const BankAccounts: React.FC = () => {
           loading={loading}
           pagination={false}
           locale={{ emptyText: <Empty description="还没有银行账户，新增一个再开始记账吧" /> }}
+          scroll={{ x: 900 }}
         />
       </Card>
 

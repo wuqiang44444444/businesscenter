@@ -149,6 +149,7 @@ const Projects: React.FC = () => {
           loading={loading}
           pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (t) => `共 ${t} 条` }}
           style={{ borderRadius: 12 }}
+          scroll={{ x: 1100 }}
         />
       </Card>
 

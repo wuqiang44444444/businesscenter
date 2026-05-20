@@ -122,6 +122,7 @@ const Users: React.FC = () => {
           loading={loading}
           pagination={{ pageSize: 10 }}
           style={{ borderRadius: 12 }}
+          scroll={{ x: 1000 }}
         />
       </Card>
 
