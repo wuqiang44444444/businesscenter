@@ -27,6 +27,9 @@ function buildSchemas(z) {
     address: optionalText,
     industry: optionalText,
     remark: optionalText,
+    level: z.enum(['gold', 'silver', 'normal', 'restricted']).optional().default('normal'),
+    credit_limit: z.number().nonnegative().optional().default(0),
+    payment_terms_days: z.number().int().nonnegative().optional().default(0),
   });
 
   const project = z.object({

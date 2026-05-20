@@ -100,6 +100,7 @@ const MONEY_FIELDS_BY_TABLE = {
   payable_payments: ['amount'],
   invoices: ['amount', 'tax_amount', 'total_amount'],
   projects: ['budget'],
+  customers: ['credit_limit'],
 };
 
 function toCents(yuan) {

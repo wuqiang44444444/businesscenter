@@ -68,6 +68,9 @@ async function initDatabase() {
       address TEXT,
       industry TEXT,
       remark TEXT,
+      level TEXT DEFAULT 'normal',
+      credit_limit REAL DEFAULT 0,
+      payment_terms_days INTEGER DEFAULT 0,
       created_by TEXT,
       created_at TEXT DEFAULT (datetime('now','localtime')),
       updated_at TEXT DEFAULT (datetime('now','localtime'))
@@ -294,6 +297,7 @@ async function initDatabase() {
   migrateOwnerScope();
   migrateBankAccounts();
   migrateAccountsPayableTax();
+  migrateCustomerGrading();
 
   // 默认管理员
   const adminRow = raw.prepare(`SELECT password, must_change_password FROM users WHERE username='admin'`).get();
@@ -470,6 +474,34 @@ function migrateAuditTimestampMs() {
   tx();
   raw.pragma('foreign_keys = ON');
   console.log('审计日志时间戳迁移完成');
+}
+
+// 客户加分级 / 信用额度 / 账期字段
+// level: gold/silver/normal/restricted；credit_limit 以分存储（沿用本系统金额规则）；
+// payment_terms_days 给后续根据账期算到期日用
+function migrateCustomerGrading() {
+  const ID = 'customer_grading_v1';
+  const done = raw.prepare(`SELECT id FROM migrations WHERE id = ?`).get(ID);
+  if (done) return;
+
+  const cols = raw.prepare(`PRAGMA table_info(customers)`).all().map(c => c.name);
+  const tx = raw.transaction(() => {
+    if (!cols.includes('level')) {
+      raw.exec(`ALTER TABLE customers ADD COLUMN level TEXT DEFAULT 'normal'`);
+      raw.exec(`UPDATE customers SET level = 'normal' WHERE level IS NULL`);
+    }
+    if (!cols.includes('credit_limit')) {
+      raw.exec(`ALTER TABLE customers ADD COLUMN credit_limit REAL DEFAULT 0`);
+      raw.exec(`UPDATE customers SET credit_limit = 0 WHERE credit_limit IS NULL`);
+    }
+    if (!cols.includes('payment_terms_days')) {
+      raw.exec(`ALTER TABLE customers ADD COLUMN payment_terms_days INTEGER DEFAULT 0`);
+      raw.exec(`UPDATE customers SET payment_terms_days = 0 WHERE payment_terms_days IS NULL`);
+    }
+    raw.prepare(`INSERT INTO migrations (id) VALUES (?)`).run(ID);
+  });
+  tx();
+  console.log('客户分级字段迁移完成');
 }
 
 // 应付账款加进项税字段：tax_rate（小数，默认 0.13）+ tax_amount（分，写入时计算）
