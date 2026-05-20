@@ -21,7 +21,7 @@ function recomputePaidStatus(db, payable_id) {
 }
 
 router.post('/', authMiddleware, validateBody(schemas.payablePayment), (req, res) => {
-  const { payable_id, amount, payment_date, payment_method, remark } = req.body;
+  const { payable_id, amount, payment_date, payment_method, remark, bank_account_id } = req.body;
   const db = getDb();
   const newAmountCents = toCents(amount) ?? 0;
 
@@ -42,8 +42,8 @@ router.post('/', authMiddleware, validateBody(schemas.payablePayment), (req, res
 
   const id = uuidv4();
   const tx = db.transaction(() => {
-    db.run(`INSERT INTO payable_payments (id, payable_id, amount, payment_date, payment_method, remark, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [id, payable_id, newAmountCents, payment_date || null, payment_method || '', remark || '', req.user.id]);
+    db.run(`INSERT INTO payable_payments (id, payable_id, amount, payment_date, payment_method, remark, bank_account_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, payable_id, newAmountCents, payment_date || null, payment_method || '', remark || '', bank_account_id || null, req.user.id]);
     recomputePaidStatus(db, payable_id);
   });
   tx();

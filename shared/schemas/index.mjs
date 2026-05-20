@@ -91,6 +91,7 @@ function buildSchemas(z) {
     payment_date: optionalDate,
     payment_method: optionalText,
     remark: optionalText,
+    bank_account_id: id.optional().nullable(),
   });
 
   // 创建发票：amount(不含税) 和 total_amount(含税) 二选一
@@ -172,6 +173,17 @@ function buildSchemas(z) {
     status: z.enum(['pending', 'paid', 'overdue']).optional(),
     actual_date: optionalDate,
     remark: optionalText.optional(),
+    bank_account_id: id.optional().nullable(),
+  });
+
+  const bankAccount = z.object({
+    name: z.string().min(1).max(100),
+    bank_name: optionalText,
+    account_number: optionalText,
+    currency: z.string().length(3).optional().default('CNY'),
+    is_default: z.boolean().optional().default(false),
+    status: z.enum(['active', 'inactive']).optional().default('active'),
+    remark: optionalText,
   });
 
   return {
@@ -182,6 +194,7 @@ function buildSchemas(z) {
     login, changePassword,
     paymentPlan, paymentPlanUpdate,
     receivableUpdate,
+    bankAccount,
   };
 }
 

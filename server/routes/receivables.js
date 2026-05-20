@@ -30,9 +30,9 @@ router.get('/', authMiddleware, (req, res) => {
 });
 
 router.put('/:id', authMiddleware, (req, res) => {
-  const { status, actual_date, remark } = req.body;
-  getDb().run(`UPDATE payment_plans SET status=?, actual_date=?, remark=?, updated_at=datetime('now','localtime') WHERE id=?`,
-    [status || 'paid', actual_date || null, remark || '', req.params.id]);
+  const { status, actual_date, remark, bank_account_id } = req.body;
+  getDb().run(`UPDATE payment_plans SET status=?, actual_date=?, remark=?, bank_account_id=?, updated_at=datetime('now','localtime') WHERE id=?`,
+    [status || 'paid', actual_date || null, remark || '', bank_account_id || null, req.params.id]);
   res.json({ success: true });
 });
 

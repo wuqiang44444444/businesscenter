@@ -32,6 +32,7 @@ function createApp() {
   app.use('/api/attachments', require('./routes/attachments'));
   app.use('/api/print', require('./routes/print'));
   app.use('/api/admin', require('./routes/admin'));
+  app.use('/api/bank-accounts', require('./routes/bank-accounts'));
 
   // ========== 生产环境：直接服务构建好的前端 ==========
   // 部署时只需 cd client && npm run build，然后跑这个 server

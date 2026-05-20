@@ -207,6 +207,20 @@ async function initDatabase() {
       applied_at TEXT DEFAULT (datetime('now','localtime'))
     );
 
+    CREATE TABLE IF NOT EXISTS bank_accounts (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      bank_name TEXT,
+      account_number TEXT,
+      currency TEXT DEFAULT 'CNY',
+      is_default INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'active',
+      remark TEXT,
+      created_by TEXT,
+      created_at TEXT DEFAULT (datetime('now','localtime')),
+      updated_at TEXT DEFAULT (datetime('now','localtime'))
+    );
+
     CREATE TABLE IF NOT EXISTS audit_log (
       id TEXT PRIMARY KEY,
       user_id TEXT,
@@ -253,6 +267,7 @@ async function initDatabase() {
   migrateAuditTimestampMs();
   migrateContractApproval();
   migrateOwnerScope();
+  migrateBankAccounts();
 
   // 默认管理员
   const adminRow = raw.prepare(`SELECT password, must_change_password FROM users WHERE username='admin'`).get();
@@ -429,6 +444,25 @@ function migrateAuditTimestampMs() {
   tx();
   raw.pragma('foreign_keys = ON');
   console.log('审计日志时间戳迁移完成');
+}
+
+// 给 payable_payments 和 payment_plans 加 bank_account_id 列
+function migrateBankAccounts() {
+  const ID = 'bank_accounts_v1';
+  const done = raw.prepare(`SELECT id FROM migrations WHERE id = ?`).get(ID);
+  if (done) return;
+
+  const tx = raw.transaction(() => {
+    for (const t of ['payable_payments', 'payment_plans']) {
+      const cols = raw.prepare(`PRAGMA table_info(${t})`).all().map(c => c.name);
+      if (!cols.includes('bank_account_id')) {
+        raw.exec(`ALTER TABLE ${t} ADD COLUMN bank_account_id TEXT`);
+      }
+    }
+    raw.prepare(`INSERT INTO migrations (id) VALUES (?)`).run(ID);
+  });
+  tx();
+  console.log('银行账户关联字段迁移完成');
 }
 
 // 业务表加 owner_id 列，老数据 fallback 到 created_by

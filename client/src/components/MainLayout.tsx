@@ -46,6 +46,7 @@ const MainLayout: React.FC = () => {
     { key: '/suppliers', icon: <BankOutlined />, label: '供应商管理' },
     { key: '/accounts-payable', icon: <AccountBookOutlined />, label: '应付账款' },
     { key: '/reports', icon: <BarChartOutlined />, label: '报表统计' },
+    { key: '/bank-accounts', icon: <BankOutlined />, label: '银行账户' },
     ...(isAdmin || user?.role === 'finance' ? [{ key: '/users', icon: <UserOutlined />, label: '用户管理' }] : []),
   ];
 

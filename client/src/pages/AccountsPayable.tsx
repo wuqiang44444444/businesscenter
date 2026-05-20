@@ -17,6 +17,7 @@ const AccountsPayable: React.FC = () => {
   const [list, setList] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -36,8 +37,12 @@ const AccountsPayable: React.FC = () => {
   };
 
   const fetchBase = async () => {
-    const [s, p]: any[] = await Promise.all([request.get('/suppliers'), request.get('/projects')]);
-    setSuppliers(s); setProjects(p);
+    const [s, p, b]: any[] = await Promise.all([
+      request.get('/suppliers'),
+      request.get('/projects'),
+      request.get('/bank-accounts'),
+    ]);
+    setSuppliers(s); setProjects(p); setBankAccounts(b);
   };
 
   useEffect(() => { fetchList(); fetchBase(); }, []);
@@ -74,7 +79,13 @@ const AccountsPayable: React.FC = () => {
   const openPay = (item: any) => {
     setPayingItem(item);
     payForm.resetFields();
-    payForm.setFieldsValue({ amount: item.amount - (item.paid_amount || 0), payment_date: dayjs() });
+    // 自动填默认账户
+    const defaultBank = bankAccounts.find(b => b.is_default && b.status === 'active');
+    payForm.setFieldsValue({
+      amount: item.amount - (item.paid_amount || 0),
+      payment_date: dayjs(),
+      bank_account_id: defaultBank?.id,
+    });
     setPayModalOpen(true);
   };
 
@@ -86,6 +97,7 @@ const AccountsPayable: React.FC = () => {
         amount: values.amount,
         payment_date: values.payment_date?.format('YYYY-MM-DD'),
         payment_method: values.payment_method,
+        bank_account_id: values.bank_account_id || null,
         remark: values.remark,
       });
       message.success('付款登记成功');
@@ -422,6 +434,15 @@ const AccountsPayable: React.FC = () => {
               <Select.Option value="cash">现金</Select.Option>
               <Select.Option value="check">支票</Select.Option>
               <Select.Option value="other">其他</Select.Option>
+            </Select>
+          </Form.Item>
+          <Form.Item name="bank_account_id" label="付款账户" tooltip="选了之后该账户余额会扣除该金额">
+            <Select placeholder="不选则不记入任何账户" allowClear style={{ borderRadius: 10 }}>
+              {bankAccounts.filter(ba => ba.status === 'active').map(ba => (
+                <Select.Option key={ba.id} value={ba.id}>
+                  {ba.name} {ba.is_default ? '（默认）' : ''} {ba.account_number ? `· ${ba.account_number.slice(-4)}` : ''}
+                </Select.Option>
+              ))}
             </Select>
           </Form.Item>
           <Form.Item name="remark" label="备注">
