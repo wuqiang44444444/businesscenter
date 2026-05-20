@@ -16,7 +16,7 @@ interface Attachment {
 }
 
 interface Props {
-  entity: 'customers' | 'projects' | 'contracts' | 'invoices' | 'suppliers' | 'accounts_payable' | 'payable_payments';
+  entity: 'customers' | 'projects' | 'contracts' | 'invoices' | 'suppliers' | 'accounts_payable' | 'payable_payments' | 'reimbursements';
   entityId: string;
   readOnly?: boolean;
 }

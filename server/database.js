@@ -207,6 +207,29 @@ async function initDatabase() {
       applied_at TEXT DEFAULT (datetime('now','localtime'))
     );
 
+    CREATE TABLE IF NOT EXISTS reimbursements (
+      id TEXT PRIMARY KEY,
+      applicant_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      category TEXT,
+      amount REAL DEFAULT 0,
+      occurred_date TEXT,
+      description TEXT,
+      status TEXT DEFAULT 'submitted',
+      approval_remark TEXT,
+      approved_by TEXT,
+      approved_at TEXT,
+      paid_by TEXT,
+      paid_at TEXT,
+      bank_account_id TEXT,
+      created_at TEXT DEFAULT (datetime('now','localtime')),
+      updated_at TEXT DEFAULT (datetime('now','localtime')),
+      FOREIGN KEY (applicant_id) REFERENCES users(id) ON DELETE RESTRICT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_reimbursements_applicant ON reimbursements(applicant_id, status);
+    CREATE INDEX IF NOT EXISTS idx_reimbursements_status ON reimbursements(status);
+
     CREATE TABLE IF NOT EXISTS bank_accounts (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,

@@ -27,6 +27,7 @@ const MainLayout: React.FC = () => {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [pendingApprovals, setPendingApprovals] = useState(0);
+  const [pendingReimbursements, setPendingReimbursements] = useState(0);
   const { user, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -36,6 +37,11 @@ const MainLayout: React.FC = () => {
   const renderContractLabel = () => pendingApprovals > 0
     ? <span>合同管理 <Badge count={pendingApprovals} size="small" style={{ marginLeft: 6 }} /></span>
     : '合同管理';
+
+  // 报销审批徽章（只对 finance/admin 显示数字）
+  const renderReimbursementLabel = () => pendingReimbursements > 0
+    ? <span>费用报销 <Badge count={pendingReimbursements} size="small" style={{ marginLeft: 6 }} /></span>
+    : '费用报销';
 
   const menuItems = [
     { key: '/', icon: <DashboardOutlined />, label: '仪表盘' },
@@ -47,6 +53,7 @@ const MainLayout: React.FC = () => {
     { key: '/accounts-payable', icon: <AccountBookOutlined />, label: '应付账款' },
     { key: '/reports', icon: <BarChartOutlined />, label: '报表统计' },
     { key: '/bank-accounts', icon: <BankOutlined />, label: '银行账户' },
+    { key: '/reimbursements', icon: <AccountBookOutlined />, label: renderReimbursementLabel() },
     ...(isAdmin || user?.role === 'finance' ? [{ key: '/users', icon: <UserOutlined />, label: '用户管理' }] : []),
   ];
 
@@ -102,6 +109,10 @@ const MainLayout: React.FC = () => {
         try {
           const r: any = await request.get('/contracts/_pending_count');
           setPendingApprovals(r.count || 0);
+        } catch { }
+        try {
+          const r: any = await request.get('/reimbursements/_pending_count');
+          setPendingReimbursements(r.count || 0);
         } catch { }
       };
       fetchPending();

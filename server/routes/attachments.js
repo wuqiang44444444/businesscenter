@@ -15,6 +15,7 @@ const router = express.Router();
 const ALLOWED_ENTITIES = new Set([
   'customers', 'projects', 'contracts', 'invoices',
   'suppliers', 'accounts_payable', 'payable_payments',
+  'reimbursements',
 ]);
 
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');

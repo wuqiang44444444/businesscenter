@@ -176,6 +176,19 @@ function buildSchemas(z) {
     bank_account_id: id.optional().nullable(),
   });
 
+  const reimbursement = z.object({
+    title: z.string().min(1).max(200),
+    category: z.enum(['travel', 'meal', 'office', 'training', 'transportation', 'other']).optional().default('other'),
+    amount: z.number().nonnegative(),
+    occurred_date: optionalDate,
+    description: optionalText,
+  });
+
+  const reimbursementAction = z.object({
+    remark: optionalText.optional(),
+    bank_account_id: id.optional().nullable(),
+  });
+
   const bankAccount = z.object({
     name: z.string().min(1).max(100),
     bank_name: optionalText,
@@ -195,6 +208,7 @@ function buildSchemas(z) {
     paymentPlan, paymentPlanUpdate,
     receivableUpdate,
     bankAccount,
+    reimbursement, reimbursementAction,
   };
 }
 
